@@ -26,7 +26,8 @@ export async function syncPendingPurchases(): Promise<number> {
 
       const payload = {
         usuario_id: record.usuario_id,
-        items: items
+        items: items,
+        numero_factura: record.numero_factura
       };
 
       try {

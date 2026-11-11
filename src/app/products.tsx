@@ -127,6 +127,12 @@ export default function ProductsScreen() {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={styles.secondaryButton}
+            onPress={() => router.push('/my-orders')}
+          >
+            <Text style={styles.secondaryButtonText}>📦 Mis Compras</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryButton}
             onPress={() => router.push('/add-product')}
           >
             <Text style={styles.secondaryButtonText}>+ Producto</Text>

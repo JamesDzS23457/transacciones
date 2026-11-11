@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useApp, SERVICES_CONFIG } from '../context/AppContext';
+import { authenticateOffline, DEFAULT_OFFLINE_USER } from '../services/offlineStorage';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -42,7 +43,60 @@ export default function LoginScreen() {
     const payload = isRegistering ? { nombre, correo, contrasena } : { correo, contrasena };
 
     try {
-      // Intentar primero a través del Gateway, con fallback al Auth Service directo de Render
+      // 1. Si no es registro, verificar si son credenciales de emergencia offline (ej. admin@gmail.com)
+      if (!isRegistering) {
+        const isDefaultOfflineUser =
+          correo.trim().toLowerCase() === DEFAULT_OFFLINE_USER.correo.toLowerCase() &&
+          contrasena.trim() === DEFAULT_OFFLINE_USER.contrasena;
+
+        // Intentar microservicio primero, pero si falla o no hay internet, permitir ingreso offline
+        try {
+          let response: Response | null = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/auth/${authPath}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).catch(() => null);
+
+          if (!response || !response.ok) {
+            response = await fetch(`${SERVICES_CONFIG.AUTH_URL}/${authPath}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }).catch(() => null);
+          }
+
+          if (response && response.ok) {
+            const data = await response.json();
+            login(data.user, data.token);
+            router.replace('/products');
+            return;
+          }
+        } catch {
+          // Microservicio caído o sin internet
+        }
+
+        // 2. Si falló el microservicio o no hay internet, validar con usuario local en SQLite/Storage
+        const offlineAuth = await authenticateOffline(correo, contrasena);
+        if (offlineAuth) {
+          console.log('🔑 [Auth] Ingreso exitoso en modo OFFLINE con usuario local/SQLite');
+          login(offlineAuth.user, offlineAuth.token);
+          router.replace('/products');
+          return;
+        }
+
+        if (isDefaultOfflineUser) {
+          login(
+            { id: DEFAULT_OFFLINE_USER.id, nombre: DEFAULT_OFFLINE_USER.nombre, correo: DEFAULT_OFFLINE_USER.correo },
+            'offline_token_admin'
+          );
+          router.replace('/products');
+          return;
+        }
+
+        throw new Error('No se pudo conectar al servidor y las credenciales no coinciden con un usuario local offline.');
+      }
+
+      // Proceso normal de registro en el servidor
       let response: Response | null = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/auth/${authPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -66,8 +120,7 @@ export default function LoginScreen() {
       login(data.user, data.token);
       router.replace('/products');
     } catch (err: any) {
-      console.warn('Fallo de red o microservicio:', err);
-      // Notificar al usuario con claridad
+      console.warn('Fallo de red o autenticación:', err);
       const msg = err.message || 'No se pudo conectar al microservicio de autenticación';
       setErrorMsg(msg);
       if (Platform.OS !== 'web') {

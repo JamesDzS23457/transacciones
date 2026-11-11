@@ -86,7 +86,7 @@ app.post('/calculate', (req, res) => {
 app.post('/checkout', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { usuario_id, items } = req.body;
+    const { usuario_id, items, numero_factura: facturaProvista } = req.body;
 
     if (!usuario_id) {
       return res.status(400).json({ error: 'usuario_id es requerido para registrar la compra' });
@@ -96,10 +96,20 @@ app.post('/checkout', async (req, res) => {
       return res.status(400).json({ error: 'La lista de items no puede estar vacía' });
     }
 
-    // Generar un número de factura único (ej. FAC-20261107-XXXX)
+    // Usar la factura provista (ej. desde el cliente offline) o generar una nueva
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const numero_factura = `FAC-${dateStr}-${randomSuffix}`;
+    const numero_factura = facturaProvista || `FAC-${dateStr}-${randomSuffix}`;
+
+    // Evitar duplicados por doble clic: si la factura ya existe, retornar la existente
+    const checkExist = await client.query('SELECT * FROM compras_usuario WHERE numero_factura = $1 LIMIT 1', [numero_factura]);
+    if (checkExist.rows.length > 0) {
+      return res.status(200).json({
+        message: 'Compra ya registrada previamente',
+        numero_factura,
+        yaRegistrada: true
+      });
+    }
 
     // Iniciar transacción SQL para garantizar integridad relacional
     await client.query('BEGIN');

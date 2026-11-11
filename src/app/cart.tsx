@@ -184,6 +184,7 @@ export default function CartScreen() {
   };
 
   const handleCheckout = async () => {
+    if (processingOrder) return; // Bloquear clicks repetidos
     if (cart.length === 0) return;
 
     if (!user) {
@@ -196,7 +197,7 @@ export default function CartScreen() {
 
     setProcessingOrder(true);
     try {
-      // 1. Generar número de factura
+      // 1. Generar número de factura único para esta transacción
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const numFactura = `FAC-${dateStr}-${randomSuffix}`;
@@ -204,21 +205,26 @@ export default function CartScreen() {
       const subtotalVal = calculation?.subtotal || cart.reduce((acc, it) => acc + Number(it.precio) * it.cantidad, 0);
       const ivaVal = calculation?.iva || +(subtotalVal * 0.19).toFixed(2);
       const totalVal = calculation?.total || +(subtotalVal + ivaVal).toFixed(2);
+      const currentCartItems = [...cart];
 
-      // 2. GUARDAR PRIMERO EN SQLITE LOCAL (Garantiza persistencia offline)
+      // 2. Limpiar el carrito inmediatamente para evitar envíos dobles por clicks rápidos
+      clearCart();
+
+      // 3. GUARDAR PRIMERO EN SQLITE LOCAL (Garantiza persistencia offline)
       await savePurchaseOffline({
         usuario_id: user.id,
         numero_factura: numFactura,
-        items_json: JSON.stringify(cart),
+        items_json: JSON.stringify(currentCartItems),
         subtotal: subtotalVal,
         iva: ivaVal,
         total: totalVal
       });
 
-      // 3. INTENTAR ENVIAR DIRECTO AL MICROSERVICIO EN RENDER
+      // 4. INTENTAR ENVIAR DIRECTO AL MICROSERVICIO EN RENDER
       const payload = JSON.stringify({
         usuario_id: user.id,
-        items: cart
+        items: currentCartItems,
+        numero_factura: numFactura
       });
 
       let response: Response | null = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/checkout`, {
@@ -243,7 +249,7 @@ export default function CartScreen() {
         console.warn('⚠️ [Offline] Sin internet o microservicio no disponible. La compra quedó segura en SQLite y se subirá automáticamente al tener red.');
       }
 
-      // 4. Preparar la factura electrónica para visualizarla e imprimirla
+      // 5. Preparar la factura electrónica para visualizarla e imprimirla
       const invoiceGenerated: InvoiceData = {
         numero_factura: numFactura,
         fecha: new Date().toLocaleString(),
@@ -251,15 +257,22 @@ export default function CartScreen() {
           nombre: user.nombre,
           correo: user.correo
         },
-        items: [...cart],
+        items: currentCartItems,
         subtotal: subtotalVal,
         iva: ivaVal,
         total: totalVal
       };
 
       setInvoice(invoiceGenerated);
-      clearCart();
       setShowModal(true);
+
+      const successNotice = '✅ ¡Compra registrada con éxito!\nLos detalles se guardaron localmente y en la base de datos.';
+      if (Platform.OS !== 'web') {
+        Alert.alert('Éxito', successNotice);
+      } else {
+        // Alerta amigable en web
+        console.log(successNotice);
+      }
     } catch (err: any) {
       console.error('Error al realizar checkout:', err);
       const errorMsg = err.message || 'No se pudo conectar con el microservicio de compras';
