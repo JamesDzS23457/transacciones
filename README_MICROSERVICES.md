@@ -35,8 +35,8 @@ El seeder ya fue ejecutado y ha creado las tablas necesarias:
 - `productos` (`id`, `nombreproducto`, `imagenproducto`, `precio`, `created_at`)
 - `compras_usuario` (`id`, `usuario_id`, `producto_id`, `numero_factura`, `cantidad`, `precio_unitario`, `subtotal`, `iva`, `total`, `fecha_compra`)
 
-**Usuario de prueba creado:**
-- **Correo:** `admin@demo.com`
+**Usuario administrador creado:**
+- **Usuario:** `james`
 - **Contraseña:** `123456`
 
 ---

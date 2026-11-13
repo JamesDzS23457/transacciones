@@ -21,11 +21,11 @@ export interface LocalUser {
   contrasena: string;
 }
 
-// Usuario offline por defecto
+// Usuario offline por defecto (único usuario de la app)
 export const DEFAULT_OFFLINE_USER: LocalUser = {
   id: 1,
-  nombre: 'Administrador Local',
-  correo: 'admin@gmail.com',
+  nombre: 'James',
+  correo: 'james',
   contrasena: '123456'
 };
 
@@ -83,10 +83,14 @@ export async function getDatabase() {
         );
       `);
 
-      // Asegurar que el usuario admin offline exista en SQLite
+      // Asegurar que james sea el único usuario local en SQLite
       await dbInstance.runAsync(
-        `INSERT OR IGNORE INTO usuarios_locales (id, nombre, correo, contrasena) VALUES (?, ?, ?, ?);`,
+        `INSERT OR REPLACE INTO usuarios_locales (id, nombre, correo, contrasena) VALUES (?, ?, ?, ?);`,
         [DEFAULT_OFFLINE_USER.id, DEFAULT_OFFLINE_USER.nombre, DEFAULT_OFFLINE_USER.correo, DEFAULT_OFFLINE_USER.contrasena]
+      );
+      await dbInstance.runAsync(
+        `DELETE FROM usuarios_locales WHERE LOWER(correo) <> ?;`,
+        [DEFAULT_OFFLINE_USER.correo.toLowerCase()]
       );
 
       console.log('[SQLite] Base de datos local y usuario admin offline inicializados exitosamente.');
@@ -104,17 +108,12 @@ export async function getDatabase() {
   return dbInitPromise;
 }
 
-// Inicializar admin en Web/AsyncStorage
+// Inicializar a james como único usuario local en Web/AsyncStorage
 async function initOfflineAdminWeb() {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.USERS);
-    let users: LocalUser[] = raw ? JSON.parse(raw) : [];
-    if (!users.some(u => u.correo.toLowerCase() === DEFAULT_OFFLINE_USER.correo.toLowerCase())) {
-      users.push(DEFAULT_OFFLINE_USER);
-      await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-    }
+    await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([DEFAULT_OFFLINE_USER]));
   } catch (e) {
-    console.error('Error inicializando admin web:', e);
+    console.error('Error inicializando usuario web:', e);
   }
 }
 
@@ -155,7 +154,7 @@ export async function authenticateOffline(correo: string, contrasena: string): P
     console.warn('Error verificando usuario offline en storage:', e);
   }
 
-  // Comprobación de seguridad directa para admin@gmail.com
+  // Comprobación de seguridad directa para james
   if (normEmail === DEFAULT_OFFLINE_USER.correo.toLowerCase() && contrasena.trim() === DEFAULT_OFFLINE_USER.contrasena) {
     return {
       user: { id: DEFAULT_OFFLINE_USER.id, nombre: DEFAULT_OFFLINE_USER.nombre, correo: DEFAULT_OFFLINE_USER.correo },

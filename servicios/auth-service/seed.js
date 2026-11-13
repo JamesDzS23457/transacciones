@@ -45,17 +45,17 @@ async function seed() {
 
     console.log('Tablas "usuarios", "productos" y "compras_usuario" creadas o verificadas con éxito.');
 
-    // Usuario demo
-    const checkUser = await pool.query('SELECT * FROM usuarios WHERE correo = $1', ['admin@demo.com']);
+    // Usuario administrador único
+    const checkUser = await pool.query('SELECT * FROM usuarios WHERE correo = $1', ['james']);
     if (checkUser.rows.length === 0) {
       const hash = await bcrypt.hash('123456', 10);
       await pool.query(
         'INSERT INTO usuarios (nombre, correo, contrasena) VALUES ($1, $2, $3)',
-        ['Admin Demo', 'admin@demo.com', hash]
+        ['James', 'james', hash]
       );
-      console.log('Usuario de prueba insertado: admin@demo.com / 123456');
+      console.log('Usuario administrador insertado: james / 123456');
     } else {
-      console.log('El usuario de prueba ya existe.');
+      console.log('El usuario james ya existe.');
     }
 
     // Productos demo

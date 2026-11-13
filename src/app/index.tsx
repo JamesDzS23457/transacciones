@@ -15,6 +15,10 @@ import { useRouter } from 'expo-router';
 import { useApp, SERVICES_CONFIG } from '../context/AppContext';
 import { authenticateOffline, DEFAULT_OFFLINE_USER } from '../services/offlineStorage';
 
+// La app tiene un único usuario administrador (james). El registro queda
+// deshabilitado desde la interfaz; cámbialo a true si necesitas crear más usuarios.
+const ALLOW_REGISTRATION = false;
+
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useApp();
@@ -43,7 +47,7 @@ export default function LoginScreen() {
     const payload = isRegistering ? { nombre, correo, contrasena } : { correo, contrasena };
 
     try {
-      // 1. Si no es registro, verificar si son credenciales de emergencia offline (ej. admin@gmail.com)
+      // 1. Si no es registro, verificar si son credenciales de emergencia offline (james)
       if (!isRegistering) {
         const isDefaultOfflineUser =
           correo.trim().toLowerCase() === DEFAULT_OFFLINE_USER.correo.toLowerCase() &&
@@ -143,7 +147,7 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>
               {isRegistering
                 ? 'Regístrate para comprar y gestionar productos'
-                : 'Ingresa con tu correo y contraseña'}
+                : 'Ingresa con tu usuario y contraseña'}
             </Text>
           </View>
 
@@ -168,16 +172,16 @@ export default function LoginScreen() {
           )}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Correo electrónico</Text>
+            <Text style={styles.label}>Usuario o correo</Text>
             <TextInput
               style={styles.input}
-              placeholder="ejemplo@correo.com"
+              placeholder="james"
               placeholderTextColor="#9ca3af"
               value={correo}
               onChangeText={setCorreo}
-              keyboardType="email-address"
+              keyboardType="default"
               autoCapitalize="none"
-              autoComplete="off"
+              autoComplete="username"
               autoCorrect={false}
             />
           </View>
@@ -210,19 +214,21 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.switchButton}
-            onPress={() => {
-              setIsRegistering(!isRegistering);
-              setErrorMsg('');
-            }}
-          >
-            <Text style={styles.switchText}>
-              {isRegistering
-                ? '¿Ya tienes una cuenta? Inicia sesión'
-                : '¿No tienes cuenta? Regístrate aquí'}
-            </Text>
-          </TouchableOpacity>
+          {ALLOW_REGISTRATION && (
+            <TouchableOpacity
+              style={styles.switchButton}
+              onPress={() => {
+                setIsRegistering(!isRegistering);
+                setErrorMsg('');
+              }}
+            >
+              <Text style={styles.switchText}>
+                {isRegistering
+                  ? '¿Ya tienes una cuenta? Inicia sesión'
+                  : '¿No tienes cuenta? Regístrate aquí'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
