@@ -73,4 +73,5 @@ Se ha configurado el archivo [render.yaml](file:///c:/Users/Estudiantes/Download
 1. En [Render.com](https://render.com/), haz clic en **New +** > **Blueprint**.
 2. Conecta tu repositorio.
 3. Render leerá `render.yaml` y creará automáticamente los 4 servicios apuntando a la carpeta `servicios/`.
-4. Una vez desplegado, copia la URL de `carrito-gateway` y colócala en `API_BASE_URL` en [AppContext.tsx](file:///c:/Users/Estudiantes/Downloads/CarritoCompra/src/context/AppContext.tsx#L5).
+4. Una vez desplegado, copia la URL de `transacciones-gateway` y colócala en `API_BASE_URL` en [AppContext.tsx](file:///c:/Users/Estudiantes/Downloads/CarritoCompra/src/context/AppContext.tsx#L5).
+   Las URLs por defecto de los 4 servicios ya están configuradas en `src/context/AppContext.tsx`.

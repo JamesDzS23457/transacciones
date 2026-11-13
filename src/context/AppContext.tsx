@@ -6,10 +6,10 @@ import { initNetworkSyncListener, syncPendingPurchases } from '../services/syncS
 export const SERVICES_CONFIG = {
   // Si en el Gateway tienes configuradas las variables AUTH_SERVICE_URL, etc., puedes usarlo
   // O conectar directamente a cada microservicio en Render para máxima velocidad y evitar saltos extra:
-  AUTH_URL: 'https://carrito-auth-service.onrender.com',
-  PRODUCTS_URL: 'https://carrito-products-service.onrender.com',
-  ORDERS_URL: 'https://carrito-orders-service.onrender.com',
-  GATEWAY_URL: 'https://carrito-gateway.onrender.com/api'
+  AUTH_URL: 'https://transacciones-auth-service.onrender.com',
+  PRODUCTS_URL: 'https://transacciones-products-service.onrender.com',
+  ORDERS_URL: 'https://transacciones-orders-service.onrender.com',
+  GATEWAY_URL: 'https://transacciones-gateway.onrender.com/api'
 };
 
 export const API_BASE_URL = SERVICES_CONFIG.GATEWAY_URL;

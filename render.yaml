@@ -1,39 +1,41 @@
 services:
   # 1. API Gateway
   - type: web
-    name: carrito-gateway
-    env: node
+    name: transacciones-gateway
+    runtime: node
     plan: free
     rootDir: servicios/gateway
     buildCommand: npm install
     startCommand: node server.js
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 10000
       - key: AUTH_SERVICE_URL
         fromService:
           type: web
-          name: carrito-auth-service
+          name: transacciones-auth-service
           property: host
       - key: PRODUCTS_SERVICE_URL
         fromService:
           type: web
-          name: carrito-products-service
+          name: transacciones-products-service
           property: host
       - key: ORDERS_SERVICE_URL
         fromService:
           type: web
-          name: carrito-orders-service
+          name: transacciones-orders-service
           property: host
 
   # 2. Microservicio de Autenticación & Usuarios
   - type: web
-    name: carrito-auth-service
-    env: node
+    name: transacciones-auth-service
+    runtime: node
     plan: free
     rootDir: servicios/auth-service
     buildCommand: npm install
     startCommand: node server.js
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 10000
@@ -44,12 +46,13 @@ services:
 
   # 3. Microservicio de Productos
   - type: web
-    name: carrito-products-service
-    env: node
+    name: transacciones-products-service
+    runtime: node
     plan: free
     rootDir: servicios/products-service
     buildCommand: npm install
     startCommand: node server.js
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 10000
@@ -58,12 +61,13 @@ services:
 
   # 4. Microservicio de Precios & Facturación de Compras
   - type: web
-    name: carrito-orders-service
-    env: node
+    name: transacciones-orders-service
+    runtime: node
     plan: free
     rootDir: servicios/orders-service
     buildCommand: npm install
     startCommand: node server.js
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 10000

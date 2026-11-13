@@ -6,10 +6,19 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// URL de los microservicios (en local o en Render)
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:4001';
-const PRODUCTS_SERVICE_URL = process.env.PRODUCTS_SERVICE_URL || 'http://localhost:4002';
-const ORDERS_SERVICE_URL = process.env.ORDERS_SERVICE_URL || 'http://localhost:4003';
+// URL de los microservicios (en local o en Render).
+// En Render, `fromService: property: host` entrega solo el host
+// (ej. transacciones-auth-service.onrender.com), sin protocolo. Sin esto,
+// http-proxy-middleware no puede interpretar el destino y responde 504.
+const normalizeServiceUrl = (value) => {
+  const url = String(value || '').trim().replace(/\/+$/, '');
+  if (!url) return url;
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+};
+
+const AUTH_SERVICE_URL = normalizeServiceUrl(process.env.AUTH_SERVICE_URL || 'http://localhost:4001');
+const PRODUCTS_SERVICE_URL = normalizeServiceUrl(process.env.PRODUCTS_SERVICE_URL || 'http://localhost:4002');
+const ORDERS_SERVICE_URL = normalizeServiceUrl(process.env.ORDERS_SERVICE_URL || 'http://localhost:4003');
 
 app.use(cors());
 
