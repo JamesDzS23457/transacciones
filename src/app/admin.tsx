@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useApp, Product, SERVICES_CONFIG } from '../context/AppContext';
+import { clearAllOfflinePurchases } from '../services/offlineStorage';
 import { COLORS, RADIUS, SHADOW } from '../constants/brand';
 
 type AdminUser = {
@@ -27,12 +28,13 @@ export default function AdminPanelScreen() {
   const router = useRouter();
   const { user } = useApp();
 
-  const [tab, setTab] = useState<'stock' | 'users'>('stock');
+  const [tab, setTab] = useState<'stock' | 'users' | 'clean'>('stock');
   const [products, setProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stockInputs, setStockInputs] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [cleaning, setCleaning] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
@@ -137,6 +139,49 @@ export default function AdminPanelScreen() {
     await patchStock(product, { stock: value });
   };
 
+  const clearHistory = () => {
+    const doClear = async () => {
+      setCleaning(true);
+      try {
+        const options: RequestInit = { method: 'DELETE', headers: adminHeaders };
+        let response = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/all`, options).catch(() => null);
+        if (!response || !response.ok) {
+          response = await fetch(`${SERVICES_CONFIG.ORDERS_URL}/all`, options).catch(() => null);
+        }
+        const data = response ? await response.json().catch(() => ({})) : {};
+        if (!response || !response.ok) {
+          throw new Error(data.error || 'No se pudo limpiar el historial');
+        }
+
+        await clearAllOfflinePurchases();
+        await Promise.all([fetchProducts(), fetchUsers()]);
+
+        if (Platform.OS !== 'web') {
+          Alert.alert('Limpieza completada', 'Historial borrado y stock reiniciado en 10.');
+        } else {
+          alert('Historial borrado y stock reiniciado en 10.');
+        }
+      } catch (err: any) {
+        const msg = err.message || 'No se pudo limpiar el historial';
+        if (Platform.OS !== 'web') Alert.alert('Error', msg);
+        else alert(msg);
+      } finally {
+        setCleaning(false);
+      }
+    };
+
+    const question =
+      '¿Borrar TODO el historial de compras y reiniciar el stock en 10? Esta acción no se puede deshacer.';
+    if (Platform.OS === 'web') {
+      if (window.confirm(question)) doClear();
+    } else {
+      Alert.alert('Borrar historial', question, [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sí, borrar', style: 'destructive', onPress: doClear }
+      ]);
+    }
+  };
+
   const deleteUser = (target: AdminUser) => {
     const doDelete = async () => {
       setBusyId(target.id);
@@ -203,6 +248,12 @@ export default function AdminPanelScreen() {
           onPress={() => setTab('users')}
         >
           <Text style={[styles.tabText, tab === 'users' && styles.tabTextActive]}>USUARIOS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, tab === 'clean' && styles.tabActive]}
+          onPress={() => setTab('clean')}
+        >
+          <Text style={[styles.tabText, tab === 'clean' && styles.tabTextActive]}>LIMPIEZA</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.refreshBtn} onPress={loadAll}>
           <Text style={styles.refreshText}>Actualizar</Text>
@@ -280,7 +331,7 @@ export default function AdminPanelScreen() {
             );
           })}
         </View>
-      ) : (
+      ) : tab === 'users' ? (
         <View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>USUARIOS ({users.length})</Text>
@@ -317,6 +368,25 @@ export default function AdminPanelScreen() {
               </View>
             );
           })}
+        </View>
+      ) : (
+        <View style={styles.cleanBox}>
+          <Text style={styles.cleanTitle}>Borrar historial de compras</Text>
+          <Text style={styles.cleanText}>
+            Elimina todas las compras de todos los usuarios, reinicia el stock en 10 y limpia el
+            historial guardado en este dispositivo. Esta acción no se puede deshacer.
+          </Text>
+          <TouchableOpacity
+            style={[styles.dangerBtn, cleaning && styles.disabledBtn]}
+            onPress={clearHistory}
+            disabled={cleaning}
+          >
+            {cleaning ? (
+              <ActivityIndicator color={COLORS.primaryText} />
+            ) : (
+              <Text style={styles.dangerBtnText}>Borrar historial y reiniciar stock</Text>
+            )}
+          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -594,5 +664,40 @@ const styles = StyleSheet.create({
     color: COLORS.textDim,
     fontSize: 10,
     fontWeight: '600'
+  },
+  cleanBox: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 138, 0.35)',
+    borderRadius: RADIUS.lg,
+    padding: 20,
+    ...SHADOW.card
+  },
+  cleanTitle: {
+    color: COLORS.text,
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: -0.3
+  },
+  cleanText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 8,
+    marginBottom: 18
+  },
+  dangerBtn: {
+    backgroundColor: COLORS.danger,
+    borderRadius: RADIUS.md,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  dangerBtnText: {
+    color: COLORS.primaryText,
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  disabledBtn: {
+    opacity: 0.6
   }
 });

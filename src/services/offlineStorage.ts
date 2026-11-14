@@ -307,6 +307,24 @@ export async function removeOfflinePurchase(localId: number): Promise<void> {
   }
 }
 
+// Borrar todo el historial de compras guardado en este dispositivo.
+export async function clearAllOfflinePurchases(): Promise<void> {
+  const db = await getDatabase();
+  if (db && !useWebFallback) {
+    try {
+      await db.runAsync(`DELETE FROM compras_offline;`);
+    } catch (e) {
+      console.warn('[SQLite] Error limpiando compras locales:', e);
+    }
+  }
+
+  try {
+    await AsyncStorage.removeItem(STORAGE_KEYS.PURCHASES);
+  } catch (e) {
+    console.warn('Error limpiando compras locales web:', e);
+  }
+}
+
 // Guardar productos en caché local para cuando no haya internet
 export async function cacheProductsLocally(products: any[]) {
   if (!Array.isArray(products)) return;

@@ -262,6 +262,35 @@ app.post('/cancel', async (req, res) => {
 });
 
 /**
+ * Borrar todo el historial de compras y reiniciar el stock (solo admin).
+ */
+app.delete('/all', async (req, res) => {
+  if (req.header('x-user-role') !== 'admin') {
+    return res.status(403).json({ error: 'Solo el administrador puede limpiar el historial' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deleted = await client.query('DELETE FROM compras_usuario');
+    await client.query('UPDATE productos SET stock = 10');
+    await client.query("ALTER SEQUENCE compras_usuario_id_seq RESTART WITH 1");
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'Historial eliminado y stock reiniciado en 10',
+      comprasEliminadas: deleted.rowCount
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al limpiar el historial:', error);
+    res.status(500).json({ error: 'Error interno al limpiar el historial' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
  * Obtener compras realizadas por un usuario
  */
 app.get('/user-orders/:usuario_id', async (req, res) => {

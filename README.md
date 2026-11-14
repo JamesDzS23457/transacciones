@@ -16,11 +16,12 @@ Aplicación móvil/web de comercio electrónico desarrollada con **React Native 
 - Inicio de sesión con autenticación JWT.
 - Catálogo de productos con búsqueda, stock y creación de productos (admin).
 - Roles: **admin** puede crear productos, gestionar stock y eliminar usuarios; **cliente** solo compra.
-- **Panel de administración** (`/admin`): inventario con stock editable y gestión de usuarios.
+- **Panel de administración** (`/admin`): inventario con stock editable, gestión de usuarios y limpieza total del historial.
 - Registro de usuarios habilitado: los nuevos usuarios entran con rol `cliente`.
 - Carrito de compras con cantidades y cálculo de subtotal, IVA (19%) y total.
 - Al confirmar una compra se descuenta el stock; al cancelarla se devuelve.
 - Al eliminar un usuario desde el panel admin se devuelve el stock de sus compras activas.
+- La pestaña **LIMPIEZA** borra todas las compras, reinicia el stock en 10 y limpia el historial local.
 - Registro de compras y factura electrónica imprimible / descargable en PDF.
 - Historial de compras por usuario, con estado activa/cancelada.
 - **Modo offline:** si no hay internet, la compra se guarda en SQLite (móvil) o AsyncStorage (web) y se sincroniza automáticamente al recuperar la conexión.

@@ -76,11 +76,11 @@ async function seed() {
     const checkProd = await pool.query('SELECT COUNT(*) FROM productos');
     if (parseInt(checkProd.rows[0].count) === 0) {
       const demoProducts = [
-        ['Laptop Gamer Pro', 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=500&q=80', 1250.0, 10],
-        ['Auriculares Inalámbricos', 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80', 79.99, 10],
-        ['Teclado Mecánico RGB', 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&q=80', 89.5, 10],
-        ['Mouse Ergonómico', 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=500&q=80', 35.0, 10],
-        ['Monitor 4K UltraWide', 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500&q=80', 399.0, 10]
+        ['Laptop Gamer Pro', 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500&q=80', 1250.0, 10],
+        ['Auriculares Inalámbricos', 'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=500&q=80', 79.99, 10],
+        ['Teclado Mecánico RGB', 'https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?w=500&q=80', 89.5, 10],
+        ['Mouse Ergonómico', 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=500&q=80', 35.0, 10],
+        ['Monitor 4K UltraWide', 'https://images.unsplash.com/photo-1547082299-de196ea013d6?w=500&q=80', 399.0, 10]
       ];
 
       for (const p of demoProducts) {
