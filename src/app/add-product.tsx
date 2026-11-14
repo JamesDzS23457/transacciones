@@ -21,12 +21,15 @@ export default function AddProductScreen() {
   const [nombreproducto, setNombreproducto] = useState('');
   const [imagenproducto, setImagenproducto] = useState('');
   const [precio, setPrecio] = useState('');
+  const [stock, setStock] = useState('10');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (!user) {
       router.replace('/');
+    } else if (user.rol !== 'admin') {
+      router.replace('/products');
     }
   }, [user]);
 
@@ -43,24 +46,31 @@ export default function AddProductScreen() {
       return;
     }
 
+    const numStock = parseInt(stock, 10);
+    if (!Number.isInteger(numStock) || numStock < 0) {
+      setErrorMsg('Ingresa un stock entero mayor o igual a 0');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = JSON.stringify({
         nombreproducto,
         imagenproducto,
-        precio: numPrice
+        precio: numPrice,
+        stock: numStock
       });
 
       let response: Response | null = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/products`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-user-role': user?.rol || '' },
         body: payload
       }).catch(() => null);
 
       if (!response || !response.ok) {
         response = await fetch(`${SERVICES_CONFIG.PRODUCTS_URL}/products`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-user-role': user?.rol || '' },
           body: payload
         });
       }
@@ -147,6 +157,18 @@ export default function AddProductScreen() {
             value={precio}
             onChangeText={setPrecio}
             keyboardType="decimal-pad"
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>STOCK INICIAL</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="10"
+            placeholderTextColor={COLORS.textDim}
+            value={stock}
+            onChangeText={setStock}
+            keyboardType="number-pad"
           />
         </View>
 

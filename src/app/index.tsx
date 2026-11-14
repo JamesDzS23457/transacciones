@@ -18,7 +18,7 @@ import { BRAND, COLORS, RADIUS, SHADOW } from '../constants/brand';
 
 // La app tiene un único usuario administrador (james). El registro queda
 // deshabilitado desde la interfaz; cámbialo a true si necesitas crear más usuarios.
-const ALLOW_REGISTRATION = false;
+const ALLOW_REGISTRATION = true;
 
 export default function LoginScreen() {
   const router = useRouter();

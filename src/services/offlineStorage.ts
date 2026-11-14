@@ -288,6 +288,25 @@ export async function markAsSynced(localId: number) {
   console.log(`✅ [Offline Storage] Registro local #${localId} marcado como sincronizado.`);
 }
 
+// Eliminar una compra local (por ejemplo, cuando el servidor rechaza el
+// checkout por falta de stock o cuando el usuario cancela una compra pendiente).
+export async function removeOfflinePurchase(localId: number): Promise<void> {
+  const db = await getDatabase();
+  if (db && !useWebFallback) {
+    try {
+      await db.runAsync(`DELETE FROM compras_offline WHERE id = ?;`, [localId]);
+    } catch (e) {
+      console.warn('[SQLite] Error eliminando compra local:', e);
+    }
+  }
+
+  const all = await getStoredPurchasesWeb();
+  const filtered = all.filter((p) => p.id !== localId);
+  if (filtered.length !== all.length) {
+    await setStoredPurchasesWeb(filtered);
+  }
+}
+
 // Guardar productos en caché local para cuando no haya internet
 export async function cacheProductsLocally(products: any[]) {
   if (!Array.isArray(products)) return;

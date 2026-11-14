@@ -39,11 +39,28 @@ async function fetchWithTimeout(
   }
 }
 
+export type CheckoutResult = {
+  ok: boolean;
+  status: number;
+  error?: string;
+};
+
+async function readError(response: Response | null): Promise<string> {
+  if (!response) return 'Sin conexión con el servidor';
+  try {
+    const data = await response.json();
+    return data?.error || `Error ${response.status}`;
+  } catch {
+    return `Error ${response.status}`;
+  }
+}
+
 /**
  * Envía una compra a la nube. Intenta el gateway y, si falla, el microservicio
- * de órdenes directo. Devuelve true solo si la nube confirmó la operación.
+ * de órdenes directo. Devuelve también el estado HTTP y el mensaje de error
+ * para poder distinguir "sin internet" de "stock insuficiente".
  */
-export async function sendCheckout(payload: unknown): Promise<boolean> {
+export async function sendCheckout(payload: unknown): Promise<CheckoutResult> {
   const options: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -66,7 +83,15 @@ export async function sendCheckout(payload: unknown): Promise<boolean> {
     console.log(`[Checkout] orders directo -> ${response ? response.status : 'sin respuesta'}`);
   }
 
-  return Boolean(response && response.ok);
+  if (response && response.ok) {
+    return { ok: true, status: response.status };
+  }
+
+  return {
+    ok: false,
+    status: response?.status ?? 0,
+    error: await readError(response)
+  };
 }
 
 /**
@@ -101,15 +126,17 @@ export async function syncPendingPurchases(): Promise<number> {
         continue;
       }
 
-      const ok = await sendCheckout({
+      const result = await sendCheckout({
         usuario_id: record.usuario_id,
         items,
         numero_factura: record.numero_factura
       });
 
-      if (ok && record.id) {
+      if (result.ok && record.id) {
         await markAsSynced(record.id);
         syncedCount++;
+      } else if (!result.ok) {
+        console.warn(`[Sync] Compra ${record.numero_factura} no sincronizada: ${result.error}`);
       }
     }
 

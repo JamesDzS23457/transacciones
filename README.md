@@ -6,18 +6,21 @@ Aplicación móvil/web de comercio electrónico desarrollada con **React Native 
 
 - **Aplicación web:** https://transacciones-delta.vercel.app
 - **Gateway (API):** https://transacciones-gateway.onrender.com
-- **Usuario de prueba:** `james`
-- **Contraseña:** `123456`
+- **Administrador:** `james` / `123456`
+- **Cliente:** `cliente` / `123456`
 
 > La demo usa los microservicios desplegados en Render. La primera petición puede tardar hasta un minuto porque el plan gratuito suspende los servicios cuando están inactivos.
 
 ## Funcionalidades
 
 - Inicio de sesión con autenticación JWT.
-- Catálogo de productos con búsqueda y creación de productos.
+- Catálogo de productos con búsqueda, stock y creación de productos (admin).
+- Roles: **admin** puede crear productos y aumentar/disminuir stock; **cliente** solo compra.
+- Registro de usuarios habilitado: los nuevos usuarios entran con rol `cliente`.
 - Carrito de compras con cantidades y cálculo de subtotal, IVA (19%) y total.
+- Al confirmar una compra se descuenta el stock; al cancelarla se devuelve.
 - Registro de compras y factura electrónica imprimible / descargable en PDF.
-- Historial de compras por usuario.
+- Historial de compras por usuario, con estado activa/cancelada.
 - **Modo offline:** si no hay internet, la compra se guarda en SQLite (móvil) o AsyncStorage (web) y se sincroniza automáticamente al recuperar la conexión.
 - Interfaz **dark premium** responsive.
 
@@ -130,7 +133,8 @@ npm run seed
 
 - El ZIP **no incluye** archivos `.env` ni credenciales reales.
 - Las credenciales de la base de datos y el `JWT_SECRET` se configuran como variables de entorno en Render.
-- El usuario de prueba de la demo es `james` / `123456`.
+- Usuarios de la demo: `james` / `123456` (admin) y `cliente` / `123456` (cliente).
+- El registro público crea siempre usuarios con rol `cliente`.
 
 ## Autor
 

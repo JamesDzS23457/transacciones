@@ -18,6 +18,7 @@ export interface User {
   id: number;
   nombre: string;
   correo: string;
+  rol?: 'admin' | 'cliente' | string;
 }
 
 export interface Product {
@@ -25,6 +26,7 @@ export interface Product {
   nombreproducto: string;
   imagenproducto: string;
   precio: number | string;
+  stock: number;
 }
 
 export interface CartItem extends Product {
@@ -50,6 +52,7 @@ interface AppContextType {
   removeFromCart: (productId: number) => void;
   updateQuantity: (productId: number, delta: number) => void;
   clearCart: () => void;
+  restoreCart: (items: CartItem[]) => void;
   calculation: CartCalculation | null;
   isCalculating: boolean;
   refreshTotals: () => Promise<void>;
@@ -86,13 +89,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addToCart = (product: Product) => {
+    const stock = Number(product.stock ?? 0);
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
+        if (existing.cantidad + 1 > stock) return prev;
         return prev.map(item =>
           item.id === product.id ? { ...item, cantidad: item.cantidad + 1 } : item
         );
       }
+      if (stock <= 0) return prev;
       return [...prev, { ...product, cantidad: 1 }];
     });
   };
@@ -107,7 +113,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .map(item => {
           if (item.id === productId) {
             const newQty = item.cantidad + delta;
-            return newQty > 0 ? { ...item, cantidad: newQty } : null;
+            if (newQty <= 0) return null;
+            if (delta > 0 && newQty > Number(item.stock ?? 0)) return item;
+            return { ...item, cantidad: newQty };
           }
           return item;
         })
@@ -117,6 +125,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearCart = () => {
     setCart([]);
+    setCalculation(null);
+  };
+
+  const restoreCart = (items: CartItem[]) => {
+    setCart(items);
     setCalculation(null);
   };
 
@@ -216,6 +229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         removeFromCart,
         updateQuantity,
         clearCart,
+        restoreCart,
         calculation,
         isCalculating,
         refreshTotals,

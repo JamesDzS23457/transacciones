@@ -49,13 +49,19 @@ app.post('/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(contrasena, 10);
+    // Todo usuario que se registra desde la app entra como cliente.
+    // El rol admin solo se asigna directamente en la base de datos.
     const result = await pool.query(
-      'INSERT INTO usuarios (nombre, correo, contrasena) VALUES ($1, $2, $3) RETURNING id, nombre, correo',
+      "INSERT INTO usuarios (nombre, correo, contrasena, rol) VALUES ($1, $2, $3, 'cliente') RETURNING id, nombre, correo, rol",
       [nombre, correo, hashedPassword]
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ id: user.id, correo: user.correo, nombre: user.nombre }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { id: user.id, correo: user.correo, nombre: user.nombre, rol: user.rol },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.status(201).json({
       message: 'Usuario registrado exitosamente',
@@ -87,14 +93,19 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    const token = jwt.sign({ id: user.id, correo: user.correo, nombre: user.nombre }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { id: user.id, correo: user.correo, nombre: user.nombre, rol: user.rol },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.json({
       message: 'Inicio de sesión exitoso',
       user: {
         id: user.id,
         nombre: user.nombre,
-        correo: user.correo
+        correo: user.correo,
+        rol: user.rol
       },
       token
     });

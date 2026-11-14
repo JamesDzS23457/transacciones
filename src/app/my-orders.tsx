@@ -8,11 +8,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView
+  SafeAreaView,
+  Alert,
+  Platform
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useApp, SERVICES_CONFIG } from '../context/AppContext';
-import { getAllOfflinePurchases, PendingPurchase } from '../services/offlineStorage';
+import { getAllOfflinePurchases, removeOfflinePurchase, PendingPurchase } from '../services/offlineStorage';
 import { syncPendingPurchases } from '../services/syncService';
 import { COLORS, RADIUS, SHADOW } from '../constants/brand';
 
@@ -37,6 +39,8 @@ interface GroupedOrder {
   items: OrderItem[];
   isOffline: boolean;
   synced: boolean;
+  estado: string;
+  localId?: number;
 }
 
 export default function MyOrdersScreen() {
@@ -89,7 +93,8 @@ export default function MyOrdersScreen() {
             total: 0,
             items: [],
             isOffline: false,
-            synced: true
+            synced: true,
+            estado: row.estado || 'activa'
           });
         }
         const order = groupedMap.get(fac)!;
@@ -134,7 +139,9 @@ export default function MyOrdersScreen() {
               total: Number(p.precio) * p.cantidad
             })),
             isOffline: true,
-            synced: off.synced === 1
+            synced: off.synced === 1,
+            estado: off.synced === 1 ? 'activa' : 'pendiente',
+            localId: off.id
           });
         }
       }
@@ -167,6 +174,60 @@ export default function MyOrdersScreen() {
     }
   };
 
+  const handleCancel = (order: GroupedOrder) => {
+    const doCancel = async () => {
+      try {
+        // Compra pendiente en local: aún no se descontó stock en el servidor.
+        if (order.isOffline && !order.synced && order.localId) {
+          await removeOfflinePurchase(order.localId);
+          await loadOrders();
+          if (Platform.OS !== 'web') Alert.alert('Compra cancelada', 'Se eliminó la compra pendiente.');
+          return;
+        }
+
+        const options: RequestInit = {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-role': user?.rol || ''
+          },
+          body: JSON.stringify({
+            numero_factura: order.numero_factura,
+            usuario_id: user?.id
+          })
+        };
+
+        let response = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/cancel`, options).catch(() => null);
+        if (!response || !response.ok) {
+          response = await fetch(`${SERVICES_CONFIG.ORDERS_URL}/cancel`, options).catch(() => null);
+        }
+        const data = response ? await response.json().catch(() => ({})) : {};
+        if (!response || !response.ok) {
+          throw new Error(data.error || 'No se pudo cancelar la compra');
+        }
+
+        await loadOrders();
+        if (Platform.OS !== 'web') {
+          Alert.alert('Compra cancelada', 'El stock de los productos fue devuelto.');
+        }
+      } catch (err: any) {
+        const msg = err.message || 'No se pudo cancelar la compra';
+        if (Platform.OS !== 'web') Alert.alert('Error', msg);
+        else alert(msg);
+      }
+    };
+
+    const question = '¿Cancelar esta compra y devolver el stock?';
+    if (Platform.OS === 'web') {
+      if (window.confirm(question)) doCancel();
+    } else {
+      Alert.alert('Cancelar compra', question, [
+        { text: 'No', style: 'cancel' },
+        { text: 'Sí, cancelar', style: 'destructive', onPress: doCancel }
+      ]);
+    }
+  };
+
   const renderOrderCard = ({ item }: { item: GroupedOrder }) => (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
@@ -176,7 +237,11 @@ export default function MyOrdersScreen() {
           <Text style={styles.orderDate}>{item.fecha}</Text>
         </View>
         <View style={styles.statusBadgeContainer}>
-          {item.synced ? (
+          {item.estado === 'cancelada' ? (
+            <View style={[styles.badge, styles.badgeCanceled]}>
+              <Text style={styles.badgeTextCanceled}>CANCELADA</Text>
+            </View>
+          ) : item.synced ? (
             <View style={[styles.badge, styles.badgeSynced]}>
               <Text style={styles.badgeTextSynced}>SINCRONIZADA</Text>
             </View>
@@ -231,6 +296,12 @@ export default function MyOrdersScreen() {
           <Text style={styles.grandTotalVal}>${item.total.toFixed(2)}</Text>
         </View>
       </View>
+
+      {item.estado !== 'cancelada' && (
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => handleCancel(item)}>
+          <Text style={styles.cancelBtnText}>Cancelar compra y devolver stock</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -446,6 +517,29 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.8
+  },
+  badgeCanceled: {
+    backgroundColor: COLORS.dangerSoft,
+    borderColor: 'rgba(255, 107, 138, 0.35)'
+  },
+  badgeTextCanceled: {
+    color: COLORS.danger,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8
+  },
+  cancelBtn: {
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 138, 0.4)',
+    alignItems: 'center'
+  },
+  cancelBtnText: {
+    color: COLORS.danger,
+    fontSize: 11,
+    fontWeight: '800'
   },
   divider: {
     height: 1,

@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { useNetInfo } from '@react-native-community/netinfo';
 import * as Print from 'expo-print';
 import { useApp, CartItem } from '../context/AppContext';
-import { savePurchaseOffline, markAsSynced } from '../services/offlineStorage';
+import { savePurchaseOffline, markAsSynced, removeOfflinePurchase } from '../services/offlineStorage';
 import { isOnline, sendCheckout } from '../services/syncService';
 import { BRAND, COLORS, RADIUS, SHADOW } from '../constants/brand';
 
@@ -37,7 +37,7 @@ interface InvoiceData {
 
 export default function CartScreen() {
   const router = useRouter();
-  const { user, cart, removeFromCart, updateQuantity, clearCart, calculation, isCalculating } = useApp();
+  const { user, cart, removeFromCart, updateQuantity, clearCart, restoreCart, calculation, isCalculating } = useApp();
   const [processingOrder, setProcessingOrder] = useState<boolean>(false);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [showModal, setShowModal] = useState<boolean>(false);
@@ -229,19 +229,29 @@ export default function CartScreen() {
 
       // 4. Solo intentar la nube si hay conexión.
       const online = await isOnline();
-      const synced = online
+      const result = online
         ? await sendCheckout({
             usuario_id: user.id,
             items: currentCartItems,
             numero_factura: numFactura
           })
-        : false;
+        : { ok: false, status: 0 as number, error: 'Sin conexión' };
+      const synced = result.ok;
 
       if (synced) {
         await markAsSynced(localId);
         console.log('🌐 [Red] Compra guardada localmente y sincronizada con Neon.');
+      } else if (online && result.status >= 400 && result.status < 500) {
+        // El servidor rechazó la compra (por ejemplo, stock insuficiente).
+        // Se elimina la copia local y se devuelve el carrito al usuario.
+        await removeOfflinePurchase(localId);
+        restoreCart(currentCartItems);
+        const msg = result.error || 'No se pudo completar la compra.';
+        if (Platform.OS !== 'web') Alert.alert('Compra no realizada', msg);
+        else alert(msg);
+        return;
       } else {
-        console.warn('📴 [Offline] Compra guardada en la base local; queda pendiente de sincronizar.');
+        console.warn(`📴 [Offline] Compra pendiente en la base local: ${result.error || 'sin conexión'}`);
       }
 
       // 5. Factura para visualizar / imprimir

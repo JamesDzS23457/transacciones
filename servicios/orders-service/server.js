@@ -96,13 +96,15 @@ app.post('/checkout', async (req, res) => {
       return res.status(400).json({ error: 'La lista de items no puede estar vacía' });
     }
 
-    // Usar la factura provista (ej. desde el cliente offline) o generar una nueva
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const numero_factura = facturaProvista || `FAC-${dateStr}-${randomSuffix}`;
 
-    // Evitar duplicados por doble clic: si la factura ya existe, retornar la existente
-    const checkExist = await client.query('SELECT * FROM compras_usuario WHERE numero_factura = $1 LIMIT 1', [numero_factura]);
+    // Idempotencia: si la factura ya existe, no se vuelve a descontar stock.
+    const checkExist = await client.query(
+      'SELECT * FROM compras_usuario WHERE numero_factura = $1 LIMIT 1',
+      [numero_factura]
+    );
     if (checkExist.rows.length > 0) {
       return res.status(200).json({
         message: 'Compra ya registrada previamente',
@@ -111,7 +113,6 @@ app.post('/checkout', async (req, res) => {
       });
     }
 
-    // Iniciar transacción SQL para garantizar integridad relacional
     await client.query('BEGIN');
 
     let totalOrden = 0;
@@ -126,14 +127,32 @@ app.post('/checkout', async (req, res) => {
       const ivaItem = parseFloat((subtotalItem * TAX_RATE).toFixed(2));
       const totalItem = parseFloat((subtotalItem + ivaItem).toFixed(2));
 
+      // Bloquear el producto y validar stock antes de vender.
+      const producto = await client.query(
+        'SELECT id, nombreproducto, stock FROM productos WHERE id = $1 FOR UPDATE',
+        [item.id]
+      );
+
+      if (producto.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `El producto ${item.id} no existe` });
+      }
+
+      if (producto.rows[0].stock < cantidad) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `Stock insuficiente para "${producto.rows[0].nombreproducto}". Disponible: ${producto.rows[0].stock}`
+        });
+      }
+
       subtotalOrden += subtotalItem;
       ivaOrden += ivaItem;
       totalOrden += totalItem;
 
       const insertQuery = `
-        INSERT INTO compras_usuario 
-        (usuario_id, producto_id, numero_factura, cantidad, precio_unitario, subtotal, iva, total)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO compras_usuario
+        (usuario_id, producto_id, numero_factura, cantidad, precio_unitario, subtotal, iva, total, estado)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'activa')
         RETURNING *;
       `;
 
@@ -149,6 +168,12 @@ app.post('/checkout', async (req, res) => {
       ]);
 
       registrosGuardados.push(result.rows[0]);
+
+      // Descontar stock
+      await client.query('UPDATE productos SET stock = stock - $1 WHERE id = $2', [
+        cantidad,
+        item.id
+      ]);
     }
 
     await client.query('COMMIT');
@@ -156,6 +181,7 @@ app.post('/checkout', async (req, res) => {
     res.status(201).json({
       message: 'Compra registrada y guardada exitosamente en la base de datos',
       numero_factura,
+      estado: 'activa',
       resumen: {
         subtotal: parseFloat(subtotalOrden.toFixed(2)),
         iva: parseFloat(ivaOrden.toFixed(2)),
@@ -168,6 +194,68 @@ app.post('/checkout', async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error al procesar la compra:', error);
     res.status(500).json({ error: 'Error interno al registrar la compra en la base de datos' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * Cancelar una compra y devolver el stock de sus productos.
+ * El dueño de la orden o un administrador pueden cancelarla.
+ */
+app.post('/cancel', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { numero_factura, usuario_id } = req.body;
+    const isAdmin = req.header('x-user-role') === 'admin';
+
+    if (!numero_factura) {
+      return res.status(400).json({ error: 'numero_factura es requerido' });
+    }
+    if (!isAdmin && !usuario_id) {
+      return res.status(400).json({ error: 'usuario_id es requerido' });
+    }
+
+    await client.query('BEGIN');
+
+    const rows = await client.query(
+      'SELECT * FROM compras_usuario WHERE numero_factura = $1 FOR UPDATE',
+      [numero_factura]
+    );
+
+    if (rows.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Compra no encontrada' });
+    }
+
+    if (!isAdmin && String(rows.rows[0].usuario_id) !== String(usuario_id)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'No puedes cancelar una compra de otro usuario' });
+    }
+
+    if (rows.rows[0].estado === 'cancelada') {
+      await client.query('COMMIT');
+      return res.json({ message: 'La compra ya estaba cancelada', numero_factura, yaCancelada: true });
+    }
+
+    await client.query(
+      "UPDATE compras_usuario SET estado = 'cancelada' WHERE numero_factura = $1",
+      [numero_factura]
+    );
+
+    for (const row of rows.rows) {
+      await client.query('UPDATE productos SET stock = stock + $1 WHERE id = $2', [
+        row.cantidad,
+        row.producto_id
+      ]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Compra cancelada y stock devuelto', numero_factura, estado: 'cancelada' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al cancelar la compra:', error);
+    res.status(500).json({ error: 'Error interno al cancelar la compra' });
   } finally {
     client.release();
   }

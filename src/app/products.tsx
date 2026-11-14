@@ -10,9 +10,10 @@ import {
   RefreshControl,
   SafeAreaView,
   TextInput,
+  Alert,
   useWindowDimensions
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useApp, Product, SERVICES_CONFIG } from '../context/AppContext';
 import { cacheProductsLocally, getLocalProducts } from '../services/offlineStorage';
 import { BRAND, COLORS, RADIUS, SHADOW } from '../constants/brand';
@@ -21,6 +22,7 @@ export default function ProductsScreen() {
   const router = useRouter();
   const { user, logout, addToCart, cart } = useApp();
   const { width } = useWindowDimensions();
+  const isAdmin = user?.rol === 'admin';
 
   const GRID_PADDING = 18;
   const GRID_GAP = 14;
@@ -86,9 +88,13 @@ export default function ProductsScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  // Refresca al volver al catálogo (por ejemplo, después de una compra
+  // que descontó stock o después de cancelar una compra).
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchProducts();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -100,6 +106,33 @@ export default function ProductsScreen() {
   const filteredProducts = (Array.isArray(products) ? products : []).filter((p) =>
     p?.nombreproducto?.toLowerCase().includes(query.trim().toLowerCase())
   );
+
+  const adjustStock = async (product: Product, delta: number) => {
+    if (!user || user.rol !== 'admin') return;
+    const request = async (base: string) => {
+      const res = await fetch(`${base}/products/${product.id}/stock`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'admin'
+        },
+        body: JSON.stringify({ delta })
+      }).catch(() => null);
+      if (!res || !res.ok) return null;
+      return res.json().catch(() => null);
+    };
+
+    let data = await request(SERVICES_CONFIG.GATEWAY_URL);
+    if (!data) data = await request(SERVICES_CONFIG.PRODUCTS_URL);
+
+    if (data?.product) {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? { ...p, stock: data.product.stock } : p))
+      );
+    } else {
+      Alert.alert('Stock', 'No se pudo actualizar el stock. Intenta de nuevo.');
+    }
+  };
 
   const renderProductItem = ({ item }: { item: Product }) => (
     <View style={[styles.card, { width: cardWidth }]}>
@@ -114,19 +147,45 @@ export default function ProductsScreen() {
         <View style={styles.idBadge}>
           <Text style={styles.idText}>#{item.id}</Text>
         </View>
+        <View style={[styles.stockBadge, item.stock <= 0 && styles.stockBadgeEmpty]}>
+          <Text style={[styles.stockText, item.stock <= 0 && styles.stockTextEmpty]}>
+            {item.stock <= 0 ? 'AGOTADO' : `STOCK ${item.stock}`}
+          </Text>
+        </View>
       </View>
       <View style={styles.cardContent}>
         <Text style={styles.productName} numberOfLines={2}>
           {item.nombreproducto}
         </Text>
+        {isAdmin && (
+          <View style={styles.stockControls}>
+            <Text style={styles.stockControlsLabel}>AJUSTAR STOCK</Text>
+            <TouchableOpacity
+              style={styles.stockBtn}
+              onPress={() => adjustStock(item, -1)}
+              accessibilityLabel={`Disminuir stock de ${item.nombreproducto}`}
+            >
+              <Text style={styles.stockBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.stockControlValue}>{item.stock}</Text>
+            <TouchableOpacity
+              style={styles.stockBtn}
+              onPress={() => adjustStock(item, 1)}
+              accessibilityLabel={`Aumentar stock de ${item.nombreproducto}`}
+            >
+              <Text style={styles.stockBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.priceRow}>
           <View>
             <Text style={styles.priceLabel}>PRECIO</Text>
             <Text style={styles.productPrice}>${parseFloat(item.precio as any).toFixed(2)}</Text>
           </View>
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.addButton, item.stock <= 0 && styles.addButtonDisabled]}
             onPress={() => addToCart(item)}
+            disabled={item.stock <= 0}
             activeOpacity={0.85}
             accessibilityLabel={`Agregar ${item.nombreproducto} al carrito`}
           >
@@ -168,7 +227,10 @@ export default function ProductsScreen() {
           <View style={styles.greetingInfo}>
             <Text style={styles.kicker}>BIENVENIDO DE NUEVO</Text>
             <Text style={styles.greeting}>Hola, {user ? user.nombre : 'Usuario'}</Text>
-            <Text style={styles.userEmail}>{user ? user.correo : ''}</Text>
+            <View style={styles.roleRow}>
+              <Text style={styles.roleBadge}>{isAdmin ? 'ADMIN' : 'CLIENTE'}</Text>
+              <Text style={styles.userEmail}>{user ? user.correo : ''}</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={styles.logoutButton}
@@ -190,9 +252,15 @@ export default function ProductsScreen() {
             onChangeText={setQuery}
             autoCorrect={false}
           />
-          <TouchableOpacity style={styles.addProductButton} onPress={() => router.push('/add-product')} accessibilityLabel="Agregar producto">
-            <Text style={styles.addProductButtonText}>+</Text>
-          </TouchableOpacity>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.addProductButton}
+              onPress={() => router.push('/add-product')}
+              accessibilityLabel="Agregar producto"
+            >
+              <Text style={styles.addProductButtonText}>+</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.sectionRow}>
@@ -526,6 +594,88 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center'
+  },
+  addButtonDisabled: {
+    backgroundColor: COLORS.surfaceHigh,
+    opacity: 0.5
+  },
+  stockBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: COLORS.successSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(62, 230, 161, 0.4)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.pill
+  },
+  stockBadgeEmpty: {
+    backgroundColor: COLORS.dangerSoft,
+    borderColor: 'rgba(255, 107, 138, 0.4)'
+  },
+  stockText: {
+    color: COLORS.success,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5
+  },
+  stockTextEmpty: {
+    color: COLORS.danger
+  },
+  stockControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8
+  },
+  stockControlsLabel: {
+    color: COLORS.textDim,
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    flex: 1
+  },
+  stockBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  stockBtnText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  stockControlValue: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '800',
+    minWidth: 18,
+    textAlign: 'center'
+  },
+  roleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4
+  },
+  roleBadge: {
+    color: COLORS.primary,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 255, 61, 0.35)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: RADIUS.pill,
+    overflow: 'hidden'
   },
   addButtonText: {
     color: COLORS.primaryText,
