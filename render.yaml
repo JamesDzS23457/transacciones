@@ -1,3 +1,11 @@
+envVarGroups:
+  # La cadena de conexión se configura UNA vez en Render (sync: false = secreto).
+  # No se guarda en el repo porque el repositorio es público.
+  - name: transacciones-db
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+
 services:
   # 1. API Gateway
   - type: web
@@ -37,10 +45,9 @@ services:
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
+      - fromGroup: transacciones-db
       - key: PORT
         value: 10000
-      - key: DATABASE_URL
-        sync: false
       - key: JWT_SECRET
         generateValue: true
 
@@ -54,10 +61,9 @@ services:
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
+      - fromGroup: transacciones-db
       - key: PORT
         value: 10000
-      - key: DATABASE_URL
-        sync: false
 
   # 4. Microservicio de Precios & Facturación de Compras
   - type: web
@@ -69,9 +75,8 @@ services:
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
+      - fromGroup: transacciones-db
       - key: PORT
         value: 10000
-      - key: DATABASE_URL
-        sync: false
       - key: TAX_RATE
         value: 0.19
