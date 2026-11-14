@@ -1,57 +1,137 @@
-# Welcome to your Expo app 👋
+# JAMES Store — Carrito de compras con microservicios
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicación móvil/web de comercio electrónico desarrollada con **React Native + Expo**, con un backend de **microservicios en Node.js/Express** y base de datos **PostgreSQL (Neon)**.
 
-## Get started
+## Demo en línea
 
-1. Install dependencies
+- **Aplicación web:** https://transacciones-delta.vercel.app
+- **Gateway (API):** https://transacciones-gateway.onrender.com
+- **Usuario de prueba:** `james`
+- **Contraseña:** `123456`
 
-   ```bash
-   npm install
-   ```
+> La demo usa los microservicios desplegados en Render. La primera petición puede tardar hasta un minuto porque el plan gratuito suspende los servicios cuando están inactivos.
 
-2. Start the app
+## Funcionalidades
 
-   ```bash
-   npx expo start
-   ```
+- Inicio de sesión con autenticación JWT.
+- Catálogo de productos con búsqueda y creación de productos.
+- Carrito de compras con cantidades y cálculo de subtotal, IVA (19%) y total.
+- Registro de compras y factura electrónica imprimible / descargable en PDF.
+- Historial de compras por usuario.
+- **Modo offline:** si no hay internet, la compra se guarda en SQLite (móvil) o AsyncStorage (web) y se sincroniza automáticamente al recuperar la conexión.
+- Interfaz **dark premium** responsive.
 
-In the output, you'll find options to open the app in a
+## Arquitectura
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+App Expo (React Native / Web)
+        |
+        v
+API Gateway (:4000)
+   |        |        |
+   v        v        v
+Auth     Products   Orders
+(:4001)  (:4002)   (:4003)
+   \        |        /
+    \       v       /
+     PostgreSQL (Neon)
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+- **gateway:** único punto de entrada para la app; redirige a cada microservicio.
+- **auth-service:** registro, login y verificación de usuarios con bcrypt + JWT.
+- **products-service:** CRUD del catálogo.
+- **orders-service:** cálculo de IVA, checkout e historial de compras.
+- **Base de datos:** PostgreSQL en Neon.
 
-### Other setup steps
+## Estructura del proyecto
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```
+CarritoCompra/
+├── src/
+│   ├── app/                 # Pantallas (Expo Router)
+│   ├── components/          # Componentes reutilizables
+│   ├── constants/brand.ts   # Sistema de diseño (colores, radios, sombras)
+│   ├── context/             # Estado global de la app
+│   └── services/            # Offline (SQLite) y sincronización
+├── servicios/
+│   ├── gateway/
+│   ├── auth-service/
+│   ├── products-service/
+│   └── orders-service/
+├── assets/
+├── app.json
+├── render.yaml              # Despliegue de los 4 servicios en Render
+└── vercel.json              # Despliegue web en Vercel
+```
 
-## Learn more
+## Cómo ejecutar la app (frontend)
 
-To learn more about developing your project with Expo, look at the following resources:
+Requiere **Node.js 20 o superior**.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm install
+npx expo start
+```
 
-## Join the community
+Luego:
 
-Join our community of developers creating universal apps.
+- `w` para abrir en el navegador.
+- `a` para Android.
+- `i` para iOS.
+- O escanear el QR con Expo Go.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-"# CarritoCompra" 
+La app apunta a los microservicios ya desplegados en Render, por lo que **no es necesario levantar el backend** para probarla.
+
+## Cómo ejecutar el backend local (opcional)
+
+Cada servicio necesita su propio archivo `.env`. En el ZIP se incluyen `.env.example` como plantilla (las credenciales reales no se incluyen por seguridad).
+
+1. Crea una base de datos PostgreSQL (Neon, Supabase, Render, etc.).
+2. En cada carpeta de `servicios/`, copia `.env.example` a `.env` y completa:
+
+```bash
+DATABASE_URL=postgresql://usuario:password@host/base_de_datos?sslmode=require
+```
+
+3. Instala dependencias y ejecuta cada servicio:
+
+```bash
+# Terminal 1
+cd servicios/auth-service
+npm install
+npm start
+
+# Terminal 2
+cd servicios/products-service
+npm install
+npm start
+
+# Terminal 3
+cd servicios/orders-service
+npm install
+npm start
+
+# Terminal 4
+cd servicios/gateway
+npm install
+npm start
+```
+
+4. Crea las tablas y los datos iniciales:
+
+```bash
+cd servicios/auth-service
+npm run seed
+```
+
+5. Ajusta en `src/context/AppContext.tsx` las URLs de `SERVICES_CONFIG` si usas servicios locales.
+
+## Notas de seguridad
+
+- El ZIP **no incluye** archivos `.env` ni credenciales reales.
+- Las credenciales de la base de datos y el `JWT_SECRET` se configuran como variables de entorno en Render.
+- El usuario de prueba de la demo es `james` / `123456`.
+
+## Autor
+
+James — Proyecto de carrito de compras con microservicios.

@@ -7,7 +7,10 @@ const pool = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 4001;
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_cart_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️ [Auth] JWT_SECRET no está configurado; se usa un valor de desarrollo.');
+}
 
 app.use(cors());
 app.use(express.json());
