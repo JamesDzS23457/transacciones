@@ -1,12 +1,13 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { AppProvider, useApp } from '../context/AppContext';
+import { BRAND, COLORS, RADIUS, SHADOW } from '../constants/brand';
 
 /**
  * Modal que aparece cuando la app recupera internet y sincroniza las
- * compras que quedaron pendientes en SQLite. Vive dentro del AppProvider
- * para poder leer el contador de sincronización.
+ * compras que quedaron pendientes en SQLite.
  */
 function SyncNoticeModal() {
   const { syncNotice, dismissSyncNotice } = useApp();
@@ -20,7 +21,10 @@ function SyncNoticeModal() {
     >
       <View style={styles.overlay}>
         <View style={styles.card}>
-          <Text style={styles.icon}>✅</Text>
+          <View style={styles.checkCircle}>
+            <Text style={styles.check}>✓</Text>
+          </View>
+          <Text style={styles.eyebrow}>SINCRONIZACIÓN COMPLETA</Text>
           <Text style={styles.title}>Productos sincronizados</Text>
           <Text style={styles.message}>
             {syncNotice.count === 1
@@ -39,21 +43,23 @@ function SyncNoticeModal() {
 export default function RootLayout() {
   return (
     <AppProvider>
+      <StatusBar style="light" />
       <SyncNoticeModal />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#ffffff' },
-          headerTintColor: '#111827',
-          headerTitleStyle: { fontWeight: '700' },
+          headerStyle: { backgroundColor: COLORS.bg },
+          headerTintColor: COLORS.primary,
+          headerTitleStyle: { fontWeight: '800', color: COLORS.text },
           headerShadowVisible: false,
-          contentStyle: { backgroundColor: '#f9fafb' }
+          headerBackButtonDisplayMode: 'minimal',
+          contentStyle: { backgroundColor: COLORS.bg }
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="products" options={{ title: 'Catálogo de Productos' }} />
-        <Stack.Screen name="cart" options={{ title: 'Mi Carrito' }} />
-        <Stack.Screen name="my-orders" options={{ title: 'Mis Compras' }} />
-        <Stack.Screen name="add-product" options={{ title: 'Nuevo Producto' }} />
+        <Stack.Screen name="products" options={{ headerShown: false }} />
+        <Stack.Screen name="cart" options={{ title: 'MI CARRITO' }} />
+        <Stack.Screen name="my-orders" options={{ title: 'MIS COMPRAS' }} />
+        <Stack.Screen name="add-product" options={{ title: 'NUEVO PRODUCTO' }} />
       </Stack>
     </AppProvider>
   );
@@ -62,53 +68,72 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: COLORS.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24
   },
   card: {
     width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
+    maxWidth: 380,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     padding: 28,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 10
+    ...SHADOW.card
   },
-  icon: {
-    fontSize: 44,
-    marginBottom: 12
+  checkCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  check: {
+    color: COLORS.primary,
+    fontSize: 30,
+    fontWeight: '900'
+  },
+  eyebrow: {
+    color: COLORS.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginBottom: 8
   },
   title: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#0f172a',
-    textAlign: 'center'
+    fontSize: 22,
+    fontWeight: '900',
+    color: COLORS.text,
+    textAlign: 'center',
+    letterSpacing: -0.4
   },
   message: {
     fontSize: 14,
-    color: '#475569',
+    color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: 10,
-    lineHeight: 20
+    lineHeight: 21
   },
   button: {
-    marginTop: 22,
-    backgroundColor: '#059669',
+    marginTop: 24,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: RADIUS.md,
     width: '100%',
     alignItems: 'center'
   },
   buttonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 15
+    color: COLORS.primaryText,
+    fontWeight: '900',
+    fontSize: 15,
+    letterSpacing: 0.2
   }
 });

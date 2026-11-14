@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useApp, SERVICES_CONFIG } from '../context/AppContext';
 import { authenticateOffline, DEFAULT_OFFLINE_USER } from '../services/offlineStorage';
+import { BRAND, COLORS, RADIUS, SHADOW } from '../constants/brand';
 
 // La app tiene un único usuario administrador (james). El registro queda
 // deshabilitado desde la interfaz; cámbialo a true si necesitas crear más usuarios.
@@ -136,220 +137,347 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.card}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}</Text>
-            <Text style={styles.subtitle}>
-              {isRegistering
-                ? 'Regístrate para comprar y gestionar productos'
-                : 'Ingresa con tu usuario y contraseña'}
+    <View style={styles.root}>
+      {/* Glows decorativos para el look premium */}
+      <View style={styles.glowLime} />
+      <View style={styles.glowCyan} />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.brandRow}>
+            <View style={styles.logoMark}>
+              <Text style={styles.logoLetter}>J</Text>
+            </View>
+            <View>
+              <Text style={styles.wordmark}>
+                {BRAND.wordmark} <Text style={styles.wordmarkAccent}>{BRAND.wordmarkAccent}</Text>
+              </Text>
+              <Text style={styles.tagline}>{BRAND.tagline}</Text>
+            </View>
+          </View>
+
+          <View style={styles.hero}>
+            <Text style={styles.kicker}>BIENVENIDO</Text>
+            <Text style={styles.heroTitle}>Tu próxima compra empieza aquí.</Text>
+            <Text style={styles.heroSub}>
+              Catálogo curado, checkout rápido y modo offline para que nunca pierdas una compra.
             </Text>
           </View>
 
-          {errorMsg ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errorMsg}</Text>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>
+                {isRegistering ? 'Crear cuenta' : 'Iniciar sesión'}
+              </Text>
+              <Text style={styles.cardSub}>
+                {isRegistering
+                  ? 'Regístrate para comprar y gestionar productos'
+                  : 'Ingresa con tu usuario y contraseña'}
+              </Text>
             </View>
-          ) : null}
 
-          {isRegistering && (
+            {errorMsg ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            ) : null}
+
+            {isRegistering && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>NOMBRE COMPLETO</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej. Juan Pérez"
+                  placeholderTextColor={COLORS.textDim}
+                  value={nombre}
+                  onChangeText={setNombre}
+                  autoCapitalize="words"
+                />
+              </View>
+            )}
+
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nombre completo</Text>
+              <Text style={styles.label}>USUARIO O CORREO</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ej. Juan Pérez"
-                placeholderTextColor="#9ca3af"
-                value={nombre}
-                onChangeText={setNombre}
-                autoCapitalize="words"
+                placeholder="james"
+                placeholderTextColor={COLORS.textDim}
+                value={correo}
+                onChangeText={setCorreo}
+                keyboardType="default"
+                autoCapitalize="none"
+                autoComplete="username"
+                autoCorrect={false}
               />
             </View>
-          )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Usuario o correo</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="james"
-              placeholderTextColor="#9ca3af"
-              value={correo}
-              onChangeText={setCorreo}
-              keyboardType="default"
-              autoCapitalize="none"
-              autoComplete="username"
-              autoCorrect={false}
-            />
-          </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>CONTRASEÑA</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={COLORS.textDim}
+                value={contrasena}
+                onChangeText={setContrasena}
+                secureTextEntry
+                autoComplete="off"
+                autoCorrect={false}
+              />
+            </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Contraseña</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ingresa tu contraseña"
-              placeholderTextColor="#9ca3af"
-              value={contrasena}
-              onChangeText={setContrasena}
-              secureTextEntry
-              autoComplete="off"
-              autoCorrect={false}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {isRegistering ? 'Registrarse' : 'Ingresar'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {ALLOW_REGISTRATION && (
             <TouchableOpacity
-              style={styles.switchButton}
-              onPress={() => {
-                setIsRegistering(!isRegistering);
-                setErrorMsg('');
-              }}
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={loading}
+              activeOpacity={0.85}
             >
-              <Text style={styles.switchText}>
-                {isRegistering
-                  ? '¿Ya tienes una cuenta? Inicia sesión'
-                  : '¿No tienes cuenta? Regístrate aquí'}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color={COLORS.primaryText} />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {isRegistering ? 'Crear cuenta' : 'Entrar a la tienda'}
+                </Text>
+              )}
             </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+            <View style={styles.offlineHint}>
+              <View style={styles.hintDot} />
+              <Text style={styles.hintText}>Acceso offline disponible</Text>
+            </View>
+
+            {ALLOW_REGISTRATION && (
+              <TouchableOpacity
+                style={styles.switchButton}
+                onPress={() => {
+                  setIsRegistering(!isRegistering);
+                  setErrorMsg('');
+                }}
+              >
+                <Text style={styles.switchText}>
+                  {isRegistering
+                    ? '¿Ya tienes una cuenta? Inicia sesión'
+                    : '¿No tienes cuenta? Regístrate aquí'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text style={styles.footer}>
+            {BRAND.name} · {new Date().getFullYear()}
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#f8fafc' // Fondo neutro, limpio y minimalista (sin azul)
+    backgroundColor: COLORS.bg,
+    overflow: 'hidden'
   },
-  scrollContent: {
+  flex: {
+    flex: 1
+  },
+  glowLime: {
+    position: 'absolute',
+    top: -160,
+    right: -120,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: 'rgba(201, 255, 61, 0.10)'
+  },
+  glowCyan: {
+    position: 'absolute',
+    bottom: -180,
+    left: -140,
+    width: 380,
+    height: 380,
+    borderRadius: 190,
+    backgroundColor: 'rgba(53, 230, 255, 0.08)'
+  },
+  scroll: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20
+    paddingHorizontal: 22,
+    paddingVertical: 40
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginBottom: 34,
+    gap: 12
+  },
+  logoMark: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  logoLetter: {
+    color: COLORS.primaryText,
+    fontSize: 23,
+    fontWeight: '900'
+  },
+  wordmark: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 1.5
+  },
+  wordmarkAccent: {
+    color: COLORS.primary
+  },
+  tagline: {
+    color: COLORS.textDim,
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 2.4,
+    marginTop: 3
+  },
+  hero: {
+    width: '100%',
+    maxWidth: 440,
+    marginBottom: 26
+  },
+  kicker: {
+    color: COLORS.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2.6,
+    marginBottom: 10
+  },
+  heroTitle: {
+    color: COLORS.text,
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: -1.2,
+    lineHeight: 38
+  },
+  heroSub: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 12,
+    maxWidth: 380
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 32,
     width: '100%',
-    maxWidth: 420,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    maxWidth: 440,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: COLORS.border,
+    padding: 24,
+    ...SHADOW.card
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 28
+  cardHeader: {
+    marginBottom: 20
   },
-  badge: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0f172a',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginBottom: 10,
-    letterSpacing: 0.5
-  },
-  title: {
-    fontSize: 26,
+  cardTitle: {
+    color: COLORS.text,
+    fontSize: 21,
     fontWeight: '800',
-    color: '#0f172a',
-    letterSpacing: -0.5
+    letterSpacing: -0.4
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 20
+  cardSub: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    marginTop: 5
   },
   errorBox: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: COLORS.dangerSoft,
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: 'rgba(255, 107, 138, 0.35)',
     padding: 12,
-    borderRadius: 10,
+    borderRadius: RADIUS.sm,
     marginBottom: 16
   },
   errorText: {
-    color: '#dc2626',
-    fontSize: 13,
-    textAlign: 'center',
-    fontWeight: '500'
+    color: COLORS.danger,
+    fontSize: 12,
+    lineHeight: 18
   },
   inputGroup: {
-    marginBottom: 18
+    marginBottom: 16
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6
+    color: COLORS.textDim,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+    marginBottom: 8
   },
   input: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 15,
-    color: '#0f172a'
+    color: COLORS.text
   },
   button: {
-    backgroundColor: '#0f172a',
-    borderRadius: 12,
-    paddingVertical: 14,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3
+    marginTop: 6
   },
   buttonDisabled: {
     opacity: 0.6
   },
   buttonText: {
-    color: '#ffffff',
+    color: COLORS.primaryText,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '900',
     letterSpacing: 0.3
   },
+  offlineHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    gap: 8
+  },
+  hintDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.success
+  },
+  hintText: {
+    color: COLORS.textDim,
+    fontSize: 12,
+    fontWeight: '600'
+  },
   switchButton: {
-    marginTop: 20,
+    marginTop: 14,
     alignItems: 'center'
   },
   switchText: {
-    color: '#0f172a',
-    fontSize: 13,
-    fontWeight: '600',
-    textDecorationLine: 'underline'
+    color: COLORS.textMuted,
+    fontSize: 12
+  },
+  footer: {
+    color: COLORS.textDim,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+    marginTop: 28
   }
 });

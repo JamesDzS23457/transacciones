@@ -18,6 +18,7 @@ import * as Print from 'expo-print';
 import { useApp, CartItem } from '../context/AppContext';
 import { savePurchaseOffline, markAsSynced } from '../services/offlineStorage';
 import { isOnline, sendCheckout } from '../services/syncService';
+import { BRAND, COLORS, RADIUS, SHADOW } from '../constants/brand';
 
 interface InvoiceData {
   numero_factura: string;
@@ -41,12 +42,10 @@ export default function CartScreen() {
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [showModal, setShowModal] = useState<boolean>(false);
 
-  // Estado real de la conexión para avisar antes de confirmar la compra.
   // Solo se considera offline si el dispositivo lo dice explícitamente.
   const netInfo = useNetInfo();
   const offline = netInfo.isConnected === false;
 
-  // Proteger la vista: requiere inicio de sesión
   React.useEffect(() => {
     if (!user) {
       router.replace('/');
@@ -75,24 +74,25 @@ export default function CartScreen() {
           <meta charset="utf-8">
           <title>Factura ${data.numero_factura}</title>
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 40px; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 20px; }
-            .company { font-size: 24px; font-weight: 800; }
-            .invoice-title { font-size: 20px; font-weight: 700; color: #475569; text-align: right; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0b1220; margin: 40px; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0b1220; padding-bottom: 20px; }
+            .company { font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+            .company span { color: #6f9c00; }
+            .invoice-title { font-size: 18px; font-weight: 700; color: #475569; text-align: right; letter-spacing: 1px; }
             .meta { margin-top: 24px; display: flex; justify-content: space-between; font-size: 14px; }
             table { width: 100%; border-collapse: collapse; margin-top: 30px; }
             th { background-color: #f8fafc; padding: 12px 10px; text-align: left; font-size: 13px; border-bottom: 2px solid #cbd5e1; }
             .totals { margin-top: 30px; margin-left: auto; width: 300px; font-size: 14px; }
             .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
-            .grand-total { font-size: 18px; font-weight: 800; color: #059669; border-top: 2px solid #0f172a; border-bottom: none; }
+            .grand-total { font-size: 18px; font-weight: 800; color: #4d7300; border-top: 2px solid #0b1220; border-bottom: none; }
             .footer { margin-top: 50px; text-align: center; color: #94a3b8; font-size: 12px; }
           </style>
         </head>
         <body>
           <div class="header">
             <div>
-              <div class="company">Carrito Store</div>
-              <div style="color: #64748b; font-size: 13px; margin-top: 4px;">Facturación Electrónica Microservicios</div>
+              <div class="company">JAMES <span>STORE</span></div>
+              <div style="color: #64748b; font-size: 12px; margin-top: 4px; letter-spacing: 1px;">PREMIUM TECH MARKETPLACE</div>
             </div>
             <div>
               <div class="invoice-title">FACTURA</div>
@@ -107,7 +107,7 @@ export default function CartScreen() {
               ${data.usuario.correo}
             </div>
             <div style="text-align: right;">
-              <strong>Fecha de Emisión:</strong><br>
+              <strong>Fecha de emisión:</strong><br>
               ${data.fecha}
             </div>
           </div>
@@ -117,7 +117,7 @@ export default function CartScreen() {
               <tr>
                 <th>Producto</th>
                 <th style="text-align: center;">Cant.</th>
-                <th style="text-align: right;">Precio Unit.</th>
+                <th style="text-align: right;">Precio unit.</th>
                 <th style="text-align: right;">Subtotal</th>
               </tr>
             </thead>
@@ -136,7 +136,7 @@ export default function CartScreen() {
               <span>$${data.iva.toFixed(2)}</span>
             </div>
             <div class="totals-row grand-total">
-              <span>Total Pagado:</span>
+              <span>Total pagado:</span>
               <span>$${data.total.toFixed(2)}</span>
             </div>
           </div>
@@ -144,7 +144,7 @@ export default function CartScreen() {
           <div class="footer">
             ${data.pendienteSync
               ? 'Compra guardada localmente. Se sincronizará con la nube cuando vuelva la conexión.'
-              : '¡Gracias por su compra! Esta factura ha sido registrada exitosamente en Neon Database.'}
+              : 'Gracias por tu compra. Esta factura fue registrada en la nube.'}
           </div>
         </body>
       </html>
@@ -157,8 +157,6 @@ export default function CartScreen() {
     const html = generateInvoiceHtml(invoice);
 
     if (Platform.OS === 'web') {
-      // En Web: abrimos un iframe invisible con solo el HTML limpio de la factura
-      // de este modo NUNCA se imprimirán los botones de la pantalla ni el fondo
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
       iframe.style.right = '0';
@@ -177,14 +175,12 @@ export default function CartScreen() {
         setTimeout(() => {
           iframe.contentWindow?.focus();
           iframe.contentWindow?.print();
-          // Limpiar el iframe luego de imprimir
           setTimeout(() => {
             document.body.removeChild(iframe);
           }, 1000);
         }, 250);
       }
     } else {
-      // En Móvil: expo-print genera el documento desde el HTML limpio sin botones
       try {
         await Print.printAsync({ html });
       } catch (e: any) {
@@ -194,7 +190,7 @@ export default function CartScreen() {
   };
 
   const handleCheckout = async () => {
-    if (processingOrder) return; // Bloquear clicks repetidos
+    if (processingOrder) return;
     if (cart.length === 0) return;
 
     if (!user) {
@@ -207,18 +203,18 @@ export default function CartScreen() {
 
     setProcessingOrder(true);
     try {
-      // 1. Generar número de factura único para esta transacción
+      // 1. Generar número de factura único
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const numFactura = `FAC-${dateStr}-${randomSuffix}`;
 
-      const subtotalVal = calculation?.subtotal || cart.reduce((acc, it) => acc + Number(it.precio) * it.cantidad, 0);
+      const subtotalVal =
+        calculation?.subtotal || cart.reduce((acc, it) => acc + Number(it.precio) * it.cantidad, 0);
       const ivaVal = calculation?.iva || +(subtotalVal * 0.19).toFixed(2);
       const totalVal = calculation?.total || +(subtotalVal + ivaVal).toFixed(2);
       const currentCartItems = [...cart];
 
-      // 2. GUARDAR PRIMERO EN SQLITE/AsyncStorage LOCAL (persistencia offline).
-      // Si esto falla, el carrito NO se vacía y el usuario puede reintentar.
+      // 2. Guardar primero en la base local: si falla, el carrito NO se vacía.
       const localId = await savePurchaseOffline({
         usuario_id: user.id,
         numero_factura: numFactura,
@@ -231,7 +227,7 @@ export default function CartScreen() {
       // 3. La compra ya está a salvo localmente: limpiar el carrito.
       clearCart();
 
-      // 4. Solo intentar la nube si hay conexión real
+      // 4. Solo intentar la nube si hay conexión.
       const online = await isOnline();
       const synced = online
         ? await sendCheckout({
@@ -242,15 +238,13 @@ export default function CartScreen() {
         : false;
 
       if (synced) {
-        // La compra ya está en Neon: marcar la copia local como sincronizada.
-        // No se reenvía con syncPendingPurchases para no duplicarla.
         await markAsSynced(localId);
         console.log('🌐 [Red] Compra guardada localmente y sincronizada con Neon.');
       } else {
         console.warn('📴 [Offline] Compra guardada en la base local; queda pendiente de sincronizar.');
       }
 
-      // 5. Preparar la factura electrónica para visualizarla e imprimirla
+      // 5. Factura para visualizar / imprimir
       const invoiceGenerated: InvoiceData = {
         numero_factura: numFactura,
         fecha: new Date().toLocaleString(),
@@ -310,7 +304,7 @@ export default function CartScreen() {
               style={styles.qtyBtn}
               onPress={() => updateQuantity(item.id, -1)}
             >
-              <Text style={styles.qtyBtnText}>-</Text>
+              <Text style={styles.qtyBtnText}>−</Text>
             </TouchableOpacity>
             <Text style={styles.qtyText}>{item.cantidad}</Text>
             <TouchableOpacity
@@ -325,7 +319,7 @@ export default function CartScreen() {
             onPress={() => removeFromCart(item.id)}
             style={styles.deleteBtn}
           >
-            <Text style={styles.deleteBtnText}>Eliminar</Text>
+            <Text style={styles.deleteBtnText}>Quitar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -336,22 +330,27 @@ export default function CartScreen() {
     <View style={styles.container}>
       {cart.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>🛒</Text>
+          <View style={styles.emptyCircle}>
+            <Text style={styles.emptyIcon}>🛒</Text>
+          </View>
           <Text style={styles.emptyTitle}>Tu carrito está vacío</Text>
-          <Text style={styles.emptySubtitle}>Agrega productos desde el catálogo para visualizarlos aquí.</Text>
+          <Text style={styles.emptySubtitle}>
+            Agrega productos desde el catálogo para verlos aquí.
+          </Text>
           <TouchableOpacity
             style={styles.browseButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.browseButtonText}>Ver Catálogo</Text>
+            <Text style={styles.browseButtonText}>Ver catálogo</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <>
           {offline && (
             <View style={styles.offlineBanner}>
+              <Text style={styles.offlineBannerTitle}>MODO OFFLINE</Text>
               <Text style={styles.offlineBannerText}>
-                📴 Sin conexión: la compra se guardará en el dispositivo y se subirá automáticamente al volver internet.
+                Tu compra se guardará en el dispositivo y se subirá automáticamente al volver internet.
               </Text>
             </View>
           )}
@@ -361,33 +360,31 @@ export default function CartScreen() {
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderCartItem}
             contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
           />
 
-          {/* Resumen de Cálculo e IVA emitido por el microservicio */}
           <View style={styles.summaryCard}>
             <View style={styles.serviceHeader}>
-              <Text style={styles.serviceTag}>Microservicio de Precios & IVA</Text>
+              <Text style={styles.serviceTag}>RESUMEN DE COMPRA</Text>
               {(isCalculating || processingOrder) && (
-                <ActivityIndicator size="small" color="#4f46e5" />
+                <ActivityIndicator size="small" color={COLORS.primary} />
               )}
             </View>
 
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal ({calculation?.totalItems || 0} arts.):</Text>
+              <Text style={styles.summaryLabel}>Subtotal ({calculation?.totalItems || 0} arts.)</Text>
               <Text style={styles.summaryValue}>${calculation?.subtotal.toFixed(2) || '0.00'}</Text>
             </View>
 
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
-                IVA aplicado ({calculation?.ivaPercentage || '19%'}):
-              </Text>
+              <Text style={styles.summaryLabel}>IVA ({calculation?.ivaPercentage || '19%'})</Text>
               <Text style={styles.summaryValue}>${calculation?.iva.toFixed(2) || '0.00'}</Text>
             </View>
 
             <View style={styles.divider} />
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.totalLabel}>Total a pagar:</Text>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total a pagar</Text>
               <Text style={styles.totalValue}>${calculation?.total.toFixed(2) || '0.00'}</Text>
             </View>
 
@@ -395,18 +392,19 @@ export default function CartScreen() {
               style={[styles.checkoutBtn, (isCalculating || processingOrder) && styles.btnDisabled]}
               onPress={handleCheckout}
               disabled={isCalculating || processingOrder}
+              activeOpacity={0.85}
             >
               {processingOrder ? (
-                <ActivityIndicator color="#ffffff" />
+                <ActivityIndicator color={COLORS.primaryText} />
               ) : (
-                <Text style={styles.checkoutBtnText}>Confirmar y Guardar Compra</Text>
+                <Text style={styles.checkoutBtnText}>Confirmar compra</Text>
               )}
             </TouchableOpacity>
           </View>
         </>
       )}
 
-      {/* Modal Factura imprimible / descargable */}
+      {/* Modal factura */}
       <Modal
         visible={showModal}
         animationType="slide"
@@ -418,11 +416,13 @@ export default function CartScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.invoiceModalCard}>
-            <ScrollView contentContainerStyle={styles.invoiceScroll}>
+            <ScrollView contentContainerStyle={styles.invoiceScroll} showsVerticalScrollIndicator={false}>
               <View style={styles.invoiceHeader}>
-                <View>
-                  <Text style={styles.invoiceStoreName}>Carrito Store</Text>
-                  <Text style={styles.invoiceStoreSub}>Factura de Venta Electrónica</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.invoiceStoreName}>
+                    {BRAND.wordmark} <Text style={styles.invoiceStoreAccent}>{BRAND.wordmarkAccent}</Text>
+                  </Text>
+                  <Text style={styles.invoiceStoreSub}>FACTURA DE VENTA</Text>
                 </View>
                 <View style={styles.invoiceNumberBox}>
                   <Text style={styles.invoiceNumberLabel}>FACTURA N°</Text>
@@ -439,31 +439,41 @@ export default function CartScreen() {
                         invoice?.pendienteSync ? styles.syncBadgeTextPending : styles.syncBadgeTextOk
                       ]}
                     >
-                      {invoice?.pendienteSync ? '⏳ Guardada offline' : '☁️ Sincronizada'}
+                      {invoice?.pendienteSync ? 'GUARDADA OFFLINE' : 'SINCRONIZADA'}
                     </Text>
                   </View>
                 </View>
               </View>
 
               <View style={styles.invoiceClientBox}>
-                <Text style={styles.clientLabel}>Cliente: <Text style={styles.clientVal}>{invoice?.usuario.nombre}</Text></Text>
-                <Text style={styles.clientLabel}>Correo: <Text style={styles.clientVal}>{invoice?.usuario.correo}</Text></Text>
-                <Text style={styles.clientLabel}>Fecha: <Text style={styles.clientVal}>{invoice?.fecha}</Text></Text>
+                <Text style={styles.clientLabel}>
+                  Cliente: <Text style={styles.clientVal}>{invoice?.usuario.nombre}</Text>
+                </Text>
+                <Text style={styles.clientLabel}>
+                  Correo: <Text style={styles.clientVal}>{invoice?.usuario.correo}</Text>
+                </Text>
+                <Text style={styles.clientLabel}>
+                  Fecha: <Text style={styles.clientVal}>{invoice?.fecha}</Text>
+                </Text>
               </View>
 
               <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeadText, { flex: 2 }]}>Producto</Text>
-                <Text style={[styles.tableHeadText, { flex: 0.8, textAlign: 'center' }]}>Cant.</Text>
-                <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>Precio</Text>
-                <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>Total</Text>
+                <Text style={[styles.tableHeadText, { flex: 2 }]}>PRODUCTO</Text>
+                <Text style={[styles.tableHeadText, { flex: 0.8, textAlign: 'center' }]}>CANT.</Text>
+                <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>PRECIO</Text>
+                <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>TOTAL</Text>
               </View>
 
               {invoice?.items.map((it, idx) => (
                 <View key={idx} style={styles.tableRow}>
-                  <Text style={[styles.tableCellText, { flex: 2 }]} numberOfLines={1}>{it.nombreproducto}</Text>
+                  <Text style={[styles.tableCellText, { flex: 2 }]} numberOfLines={1}>
+                    {it.nombreproducto}
+                  </Text>
                   <Text style={[styles.tableCellText, { flex: 0.8, textAlign: 'center' }]}>{it.cantidad}</Text>
-                  <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right' }]}>${Number(it.precio).toFixed(2)}</Text>
-                  <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', fontWeight: '700' }]}>
+                  <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right' }]}>
+                    ${Number(it.precio).toFixed(2)}
+                  </Text>
+                  <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', fontWeight: '800' }]}>
                     ${(Number(it.precio) * it.cantidad).toFixed(2)}
                   </Text>
                 </View>
@@ -471,25 +481,22 @@ export default function CartScreen() {
 
               <View style={styles.invoiceTotals}>
                 <View style={styles.invoiceTotalRow}>
-                  <Text style={styles.subLabel}>Subtotal:</Text>
+                  <Text style={styles.subLabel}>Subtotal</Text>
                   <Text style={styles.subVal}>${invoice?.subtotal.toFixed(2)}</Text>
                 </View>
                 <View style={styles.invoiceTotalRow}>
-                  <Text style={styles.subLabel}>IVA (19%):</Text>
+                  <Text style={styles.subLabel}>IVA (19%)</Text>
                   <Text style={styles.subVal}>${invoice?.iva.toFixed(2)}</Text>
                 </View>
                 <View style={[styles.invoiceTotalRow, styles.grandTotalBorder]}>
-                  <Text style={styles.grandLabel}>Total Facturado:</Text>
+                  <Text style={styles.grandLabel}>Total facturado</Text>
                   <Text style={styles.grandVal}>${invoice?.total.toFixed(2)}</Text>
                 </View>
               </View>
 
               <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={styles.printBtn}
-                  onPress={handlePrintOrPdf}
-                >
-                  <Text style={styles.printBtnText}>📄 Imprimir / Guardar como PDF</Text>
+                <TouchableOpacity style={styles.printBtn} onPress={handlePrintOrPdf}>
+                  <Text style={styles.printBtnText}>Imprimir / Guardar PDF</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -513,104 +520,102 @@ export default function CartScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb'
+    backgroundColor: COLORS.bg
   },
   listContent: {
-    padding: 16
+    padding: 16,
+    paddingBottom: 22
   },
   cartCard: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.borderSoft,
     alignItems: 'center'
   },
   itemImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6'
+    width: 76,
+    height: 76,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceAlt
   },
   itemInfo: {
     flex: 1,
-    marginLeft: 12
+    marginLeft: 14
   },
   itemName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827'
+    fontWeight: '700',
+    color: COLORS.text
   },
   itemPrice: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 2
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 3
   },
   controlsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8
+    marginTop: 10
   },
   qtyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 6
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
   qtyBtn: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center'
   },
   qtyBtnText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#374151'
+    fontWeight: '800',
+    color: COLORS.primary
   },
   qtyText: {
     fontSize: 13,
-    fontWeight: '600',
-    paddingHorizontal: 8
+    fontWeight: '800',
+    color: COLORS.text,
+    paddingHorizontal: 6
   },
   deleteBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.dangerSoft
   },
   deleteBtnText: {
-    fontSize: 12,
-    color: '#ef4444'
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.danger
   },
   summaryCard: {
-    backgroundColor: '#ffffff',
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 5
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    padding: 18,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 18
   },
   serviceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12
+    marginBottom: 14
   },
   serviceTag: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#4f46e5',
-    backgroundColor: '#eef2ff',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
+    color: COLORS.primary,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2
   },
   summaryRow: {
     flexDirection: 'row',
@@ -619,264 +624,302 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 13,
-    color: '#6b7280'
+    color: COLORS.textMuted
   },
   summaryValue: {
     fontSize: 13,
-    fontWeight: '500',
-    color: '#111827'
+    fontWeight: '700',
+    color: COLORS.text
   },
   divider: {
     height: 1,
-    backgroundColor: '#f3f4f6',
-    marginVertical: 10
+    backgroundColor: COLORS.borderSoft,
+    marginVertical: 12
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16
   },
   totalLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#111827'
+    color: COLORS.text
   },
   totalValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#10b981'
+    fontSize: 26,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: -0.8
   },
   checkoutBtn: {
-    backgroundColor: '#111827',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 16
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: 16,
+    alignItems: 'center'
+  },
+  checkoutBtnText: {
+    color: COLORS.primaryText,
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.2
   },
   btnDisabled: {
     opacity: 0.6
   },
-  checkoutBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600'
+  offlineBanner: {
+    backgroundColor: COLORS.warningSoft,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 200, 87, 0.35)',
+    paddingHorizontal: 16,
+    paddingVertical: 11
+  },
+  offlineBannerTitle: {
+    color: COLORS.warning,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.8,
+    marginBottom: 3
+  },
+  offlineBannerText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    lineHeight: 17
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24
+    padding: 28
+  },
+  emptyCircle: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 18
+  },
+  emptyIcon: {
+    fontSize: 38
+  },
+  emptyTitle: {
+    fontSize: 23,
+    fontWeight: '900',
+    color: COLORS.text,
+    letterSpacing: -0.5
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 22,
+    maxWidth: 300,
+    lineHeight: 20
+  },
+  browseButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+    borderRadius: RADIUS.md
+  },
+  browseButtonText: {
+    color: COLORS.primaryText,
+    fontWeight: '900',
+    fontSize: 14
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    backgroundColor: COLORS.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20
+    padding: 16
   },
   invoiceModalCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
     width: '100%',
-    maxWidth: 580,
-    maxHeight: '90%',
+    maxWidth: 560,
+    maxHeight: '92%',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10
+    ...SHADOW.card
   },
   invoiceScroll: {
-    padding: 28
+    padding: 22
   },
   invoiceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    borderBottomWidth: 2,
-    borderBottomColor: '#0f172a',
-    paddingBottom: 16
+    gap: 10
   },
   invoiceStoreName: {
+    color: COLORS.text,
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0f172a'
+    fontWeight: '900',
+    letterSpacing: 1.4
+  },
+  invoiceStoreAccent: {
+    color: COLORS.primary
   },
   invoiceStoreSub: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2
+    color: COLORS.textDim,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginTop: 4
   },
   invoiceNumberBox: {
-    alignItems: 'flex-end'
+    alignItems: 'flex-end',
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9
   },
   invoiceNumberLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748b'
+    fontSize: 8,
+    color: COLORS.textDim,
+    fontWeight: '800',
+    letterSpacing: 1.4
   },
   invoiceNumber: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#0f172a',
+    color: COLORS.text,
     marginTop: 2
   },
+  syncBadge: {
+    marginTop: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.pill
+  },
+  syncBadgePending: {
+    backgroundColor: COLORS.warningSoft
+  },
+  syncBadgeOk: {
+    backgroundColor: COLORS.successSoft
+  },
+  syncBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.6
+  },
+  syncBadgeTextPending: {
+    color: COLORS.warning
+  },
+  syncBadgeTextOk: {
+    color: COLORS.success
+  },
   invoiceClientBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: COLORS.surfaceAlt,
     padding: 14,
-    borderRadius: 10,
+    borderRadius: RADIUS.md,
     marginVertical: 18,
-    gap: 4
+    gap: 5,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft
   },
   clientLabel: {
-    fontSize: 13,
-    color: '#64748b'
+    fontSize: 12,
+    color: COLORS.textMuted
   },
   clientVal: {
     fontWeight: '700',
-    color: '#0f172a'
+    color: COLORS.text
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: COLORS.surfaceAlt,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.sm,
     marginBottom: 8
   },
   tableHeadText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#334155'
+    fontSize: 8,
+    fontWeight: '900',
+    color: COLORS.textDim,
+    letterSpacing: 1
   },
   tableRow: {
     flexDirection: 'row',
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9'
+    borderBottomColor: COLORS.borderSoft
   },
   tableCellText: {
-    fontSize: 13,
-    color: '#0f172a'
+    fontSize: 12,
+    color: COLORS.text
   },
   invoiceTotals: {
-    marginTop: 20,
-    paddingTop: 12,
-    alignSelf: 'flex-end',
-    width: 240
+    marginTop: 18,
+    gap: 6
   },
   invoiceTotalRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6
+    justifyContent: 'space-between'
   },
   subLabel: {
-    fontSize: 13,
-    color: '#64748b'
+    fontSize: 12,
+    color: COLORS.textMuted
   },
   subVal: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0f172a'
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.text
   },
   grandTotalBorder: {
-    borderTopWidth: 2,
-    borderTopColor: '#0f172a',
-    paddingTop: 8,
-    marginTop: 4
+    marginTop: 6,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border
   },
   grandLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#0f172a'
+    color: COLORS.text
   },
   grandVal: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#059669'
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.primary
   },
   actionRow: {
-    marginTop: 28,
-    gap: 12
+    marginTop: 22,
+    gap: 10
   },
   printBtn: {
-    backgroundColor: '#0f172a',
-    borderRadius: 12,
+    backgroundColor: COLORS.primary,
     paddingVertical: 14,
+    borderRadius: RADIUS.md,
     alignItems: 'center'
   },
   printBtnText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700'
+    color: COLORS.primaryText,
+    fontWeight: '900',
+    fontSize: 13
   },
   closeModalBtn: {
     paddingVertical: 12,
-    alignItems: 'center'
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md
   },
   closeModalBtnText: {
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827'
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 20
-  },
-  browseButton: {
-    backgroundColor: '#111827',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8
-  },
-  browseButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14
-  },
-  offlineBanner: {
-    backgroundColor: '#fef3c7',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f59e0b',
-    paddingHorizontal: 16,
-    paddingVertical: 10
-  },
-  offlineBannerText: {
-    color: '#92400e',
+    color: COLORS.textMuted,
     fontSize: 12,
-    textAlign: 'center',
-    fontWeight: '600'
-  },
-  syncBadge: {
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    alignSelf: 'flex-end'
-  },
-  syncBadgePending: {
-    backgroundColor: '#fef3c7'
-  },
-  syncBadgeOk: {
-    backgroundColor: '#dcfce7'
-  },
-  syncBadgeText: {
-    fontSize: 11,
     fontWeight: '700'
-  },
-  syncBadgeTextPending: {
-    color: '#92400e'
-  },
-  syncBadgeTextOk: {
-    color: '#166534'
   }
 });

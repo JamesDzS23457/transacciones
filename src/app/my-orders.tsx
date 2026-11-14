@@ -8,14 +8,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  Platform
+  SafeAreaView
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useApp, SERVICES_CONFIG } from '../context/AppContext';
 import { getAllOfflinePurchases, PendingPurchase } from '../services/offlineStorage';
 import { syncPendingPurchases } from '../services/syncService';
+import { COLORS, RADIUS, SHADOW } from '../constants/brand';
 
 interface OrderItem {
   id?: number;
@@ -60,9 +59,9 @@ export default function MyOrdersScreen() {
     try {
       // 1. Cargar compras locales (SQLite / Storage)
       const offlinePurchases: PendingPurchase[] = await getAllOfflinePurchases();
-      const userOffline = offlinePurchases.filter(p => p.usuario_id === user.id);
+      const userOffline = offlinePurchases.filter((p) => p.usuario_id === user.id);
 
-      // 2. Intentar cargar compras desde Neon Database a través del microservicio
+      // 2. Intentar cargar compras desde Neon a través del microservicio
       let onlineOrders: any[] = [];
       try {
         let res = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/user-orders/${user.id}`).catch(() => null);
@@ -76,10 +75,9 @@ export default function MyOrdersScreen() {
         console.warn('No se pudo conectar a los microservicios en la nube:', e);
       }
 
-      // 3. Agrupar compras online por factura
       const groupedMap = new Map<string, GroupedOrder>();
 
-      // Primero procesar las que vienen de la nube
+      // Primero las que vienen de la nube
       for (const row of onlineOrders) {
         const fac = row.numero_factura;
         if (!groupedMap.has(fac)) {
@@ -111,7 +109,7 @@ export default function MyOrdersScreen() {
         });
       }
 
-      // Luego fusionar las guardadas localmente en SQLite
+      // Luego fusionar las guardadas localmente
       for (const off of userOffline) {
         const fac = off.numero_factura;
         if (!groupedMap.has(fac)) {
@@ -141,8 +139,7 @@ export default function MyOrdersScreen() {
         }
       }
 
-      const list = Array.from(groupedMap.values());
-      setOrders(list);
+      setOrders(Array.from(groupedMap.values()));
     } catch (err) {
       console.error('Error cargando compras:', err);
     } finally {
@@ -172,20 +169,20 @@ export default function MyOrdersScreen() {
 
   const renderOrderCard = ({ item }: { item: GroupedOrder }) => (
     <View style={styles.orderCard}>
-      {/* Encabezado de la factura */}
       <View style={styles.orderHeader}>
-        <View>
+        <View style={styles.orderHeaderLeft}>
+          <Text style={styles.invoiceLabel}>FACTURA</Text>
           <Text style={styles.invoiceNumber}>{item.numero_factura}</Text>
           <Text style={styles.orderDate}>{item.fecha}</Text>
         </View>
         <View style={styles.statusBadgeContainer}>
           {item.synced ? (
             <View style={[styles.badge, styles.badgeSynced]}>
-              <Text style={styles.badgeTextSynced}>☁️ En Neon DB</Text>
+              <Text style={styles.badgeTextSynced}>SINCRONIZADA</Text>
             </View>
           ) : (
             <View style={[styles.badge, styles.badgePending]}>
-              <Text style={styles.badgeTextPending}>⏳ SQLite (Pendiente de subir)</Text>
+              <Text style={styles.badgeTextPending}>PENDIENTE</Text>
             </View>
           )}
         </View>
@@ -193,7 +190,6 @@ export default function MyOrdersScreen() {
 
       <View style={styles.divider} />
 
-      {/* Lista de productos comprados */}
       <View style={styles.itemsList}>
         {item.items.map((prod, idx) => (
           <View key={idx} style={styles.itemRow}>
@@ -221,18 +217,17 @@ export default function MyOrdersScreen() {
 
       <View style={styles.divider} />
 
-      {/* Totales */}
       <View style={styles.totalsContainer}>
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Subtotal:</Text>
+          <Text style={styles.totalLabel}>Subtotal</Text>
           <Text style={styles.totalVal}>${item.subtotal.toFixed(2)}</Text>
         </View>
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>IVA (19%):</Text>
+          <Text style={styles.totalLabel}>IVA (19%)</Text>
           <Text style={styles.totalVal}>${item.iva.toFixed(2)}</Text>
         </View>
         <View style={[styles.totalRow, styles.grandTotalRow]}>
-          <Text style={styles.grandTotalLabel}>Total Pagado:</Text>
+          <Text style={styles.grandTotalLabel}>Total pagado</Text>
           <Text style={styles.grandTotalVal}>${item.total.toFixed(2)}</Text>
         </View>
       </View>
@@ -241,10 +236,9 @@ export default function MyOrdersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Barra de acción */}
       <View style={styles.topActions}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/products')}>
-          <Text style={styles.backBtnText}>← Volver a la Tienda</Text>
+          <Text style={styles.backBtnText}>← Catálogo</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -253,16 +247,16 @@ export default function MyOrdersScreen() {
           disabled={syncing}
         >
           {syncing ? (
-            <ActivityIndicator size="small" color="#ffffff" />
+            <ActivityIndicator size="small" color={COLORS.primaryText} />
           ) : (
-            <Text style={styles.syncBtnText}>🔄 Sincronizar</Text>
+            <Text style={styles.syncBtnText}>Sincronizar</Text>
           )}
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#111827" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Cargando historial de compras...</Text>
         </View>
       ) : orders.length === 0 ? (
@@ -270,13 +264,13 @@ export default function MyOrdersScreen() {
           <Text style={styles.emptyIcon}>🛍️</Text>
           <Text style={styles.emptyTitle}>Aún no tienes compras</Text>
           <Text style={styles.emptySub}>
-            Las compras que hagas (incluso sin internet) se guardarán en SQLite y aparecerán aquí.
+            Las compras que hagas (incluso sin internet) se guardarán en la base local y aparecerán aquí.
           </Text>
           <TouchableOpacity
             style={styles.exploreBtn}
             onPress={() => router.replace('/products')}
           >
-            <Text style={styles.exploreBtnText}>Explorar Catálogo</Text>
+            <Text style={styles.exploreBtnText}>Explorar catálogo</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -285,7 +279,15 @@ export default function MyOrdersScreen() {
           keyExtractor={(item) => item.numero_factura}
           renderItem={renderOrderCard}
           contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.primary}
+              colors={[COLORS.primary]}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -295,38 +297,38 @@ export default function MyOrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb'
+    backgroundColor: COLORS.bg
   },
   topActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb'
+    borderBottomColor: COLORS.borderSoft
   },
   backBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6'
+    paddingVertical: 8,
+    paddingHorizontal: 13,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
   backBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151'
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMuted
   },
   syncBtn: {
-    backgroundColor: '#4f46e5',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8
+    backgroundColor: COLORS.primary,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: RADIUS.pill
   },
   syncBtnText: {
-    color: '#ffffff',
-    fontWeight: '700',
+    color: COLORS.primaryText,
+    fontWeight: '900',
     fontSize: 12
   },
   btnDisabled: {
@@ -336,116 +338,132 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24
+    padding: 28
   },
   loadingText: {
-    marginTop: 12,
-    color: '#6b7280',
-    fontSize: 14
+    marginTop: 14,
+    color: COLORS.textMuted,
+    fontSize: 13
   },
   emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12
+    fontSize: 46,
+    marginBottom: 14
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 6
+    fontSize: 21,
+    fontWeight: '900',
+    color: COLORS.text,
+    marginBottom: 8,
+    letterSpacing: -0.4
   },
   emptySub: {
     fontSize: 13,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     textAlign: 'center',
-    maxWidth: 320,
-    marginBottom: 20
+    maxWidth: 330,
+    marginBottom: 22,
+    lineHeight: 20
   },
   exploreBtn: {
-    backgroundColor: '#111827',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md
   },
   exploreBtnText: {
-    color: '#ffffff',
-    fontWeight: '600',
+    color: COLORS.primaryText,
+    fontWeight: '800',
     fontSize: 14
   },
   listContent: {
-    padding: 16,
-    maxWidth: 720,
+    padding: 18,
+    paddingBottom: 36,
+    maxWidth: 760,
     width: '100%',
     alignSelf: 'center'
   },
   orderCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: 18,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2
+    borderColor: COLORS.borderSoft,
+    ...SHADOW.soft
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start'
+    alignItems: 'flex-start',
+    gap: 10
+  },
+  orderHeaderLeft: {
+    flex: 1
+  },
+  invoiceLabel: {
+    color: COLORS.textDim,
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1.8,
+    marginBottom: 3
   },
   invoiceNumber: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#111827'
+    fontWeight: '900',
+    color: COLORS.text,
+    letterSpacing: -0.2
   },
   orderDate: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 3
   },
   statusBadgeContainer: {
     alignItems: 'flex-end'
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1
   },
   badgeSynced: {
-    backgroundColor: '#ecfdf5'
+    backgroundColor: COLORS.successSoft,
+    borderColor: 'rgba(62, 230, 161, 0.35)'
   },
   badgeTextSynced: {
-    color: '#059669',
-    fontSize: 11,
-    fontWeight: '700'
+    color: COLORS.success,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8
   },
   badgePending: {
-    backgroundColor: '#fef3c7'
+    backgroundColor: COLORS.warningSoft,
+    borderColor: 'rgba(255, 200, 87, 0.35)'
   },
   badgeTextPending: {
-    color: '#d97706',
-    fontSize: 11,
-    fontWeight: '700'
+    color: COLORS.warning,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8
   },
   divider: {
     height: 1,
-    backgroundColor: '#f3f4f6',
-    marginVertical: 12
+    backgroundColor: COLORS.borderSoft,
+    marginVertical: 14
   },
   itemsList: {
-    gap: 10
+    gap: 12
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center'
   },
   prodImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 6,
-    backgroundColor: '#f3f4f6'
+    width: 46,
+    height: 46,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceAlt
   },
   noImage: {
     justifyContent: 'center',
@@ -460,21 +478,21 @@ const styles = StyleSheet.create({
   },
   prodName: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#1f2937'
+    fontWeight: '700',
+    color: COLORS.text
   },
   prodDetails: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 3
   },
   prodTotal: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#111827'
+    fontWeight: '800',
+    color: COLORS.text
   },
   totalsContainer: {
-    gap: 4
+    gap: 5
   },
   totalRow: {
     flexDirection: 'row',
@@ -482,27 +500,27 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 12,
-    color: '#6b7280'
+    color: COLORS.textMuted
   },
   totalVal: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#374151'
+    fontWeight: '700',
+    color: COLORS.text
   },
   grandTotalRow: {
-    marginTop: 4,
-    paddingTop: 6,
+    marginTop: 5,
+    paddingTop: 9,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6'
+    borderTopColor: COLORS.borderSoft
   },
   grandTotalLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#111827'
+    color: COLORS.text
   },
   grandTotalVal: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#059669'
+    fontSize: 17,
+    fontWeight: '900',
+    color: COLORS.primary
   }
 });
