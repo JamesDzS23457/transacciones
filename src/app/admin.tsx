@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useApp, Product, SERVICES_CONFIG } from '../context/AppContext';
 import { clearAllOfflinePurchases } from '../services/offlineStorage';
 import { COLORS, RADIUS, SHADOW } from '../constants/brand';
+import ConfirmModal from '../components/confirm-modal';
 
 type AdminUser = {
   id: number;
@@ -35,6 +36,10 @@ export default function AdminPanelScreen() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [cleaning, setCleaning] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    { kind: 'clean' } | { kind: 'delete'; user: AdminUser } | null
+  >(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
@@ -139,100 +144,71 @@ export default function AdminPanelScreen() {
     await patchStock(product, { stock: value });
   };
 
-  const clearHistory = () => {
-    const doClear = async () => {
-      setCleaning(true);
-      let serverOk = false;
-      let serverError = '';
+  const runClearHistory = async () => {
+    setCleaning(true);
+    setStatusMsg(null);
+    let serverOk = false;
+    let serverError = '';
 
-      try {
-        const options: RequestInit = { method: 'DELETE', headers: adminHeaders };
-        let response = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/all`, options).catch(() => null);
-        if (!response || !response.ok) {
-          response = await fetch(`${SERVICES_CONFIG.ORDERS_URL}/all`, options).catch(() => null);
-        }
-        const data = response ? await response.json().catch(() => ({})) : {};
-        if (!response || !response.ok) {
-          throw new Error(data.error || 'No se pudo limpiar el historial en el servidor');
-        }
-        serverOk = true;
-      } catch (err: any) {
-        serverError = err.message || 'No se pudo limpiar el servidor';
+    try {
+      const options: RequestInit = { method: 'DELETE', headers: adminHeaders };
+      let response = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/all`, options).catch(() => null);
+      if (!response || !response.ok) {
+        response = await fetch(`${SERVICES_CONFIG.ORDERS_URL}/all`, options).catch(() => null);
       }
-
-      // Limpiar SIEMPRE el historial local, aunque el servidor falle.
-      await clearAllOfflinePurchases();
-      await Promise.all([fetchProducts(), fetchUsers()]);
-      setCleaning(false);
-
-      if (Platform.OS !== 'web') {
-        Alert.alert(
-          serverOk ? 'Limpieza completada' : 'Historial local limpiado',
-          serverOk
-            ? 'Historial borrado y stock reiniciado en 10.'
-            : `Se limpió este dispositivo. El servidor no se pudo limpiar: ${serverError}. Redeploya orders-service.`
-        );
-      } else {
-        alert(
-          serverOk
-            ? 'Historial borrado y stock reiniciado en 10.'
-            : `Historial local borrado. El servidor no se pudo limpiar: ${serverError}`
-        );
+      const data = response ? await response.json().catch(() => ({})) : {};
+      if (!response || !response.ok) {
+        throw new Error(data.error || 'No se pudo limpiar el historial en el servidor');
       }
-    };
-
-    const question =
-      '¿Borrar TODO el historial de compras y reiniciar el stock en 10? Esta acción no se puede deshacer.';
-    if (Platform.OS === 'web') {
-      if (window.confirm(question)) doClear();
-    } else {
-      Alert.alert('Borrar historial', question, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sí, borrar', style: 'destructive', onPress: doClear }
-      ]);
+      serverOk = true;
+    } catch (err: any) {
+      serverError = err.message || 'No se pudo limpiar el servidor';
     }
+
+    // Limpiar SIEMPRE el historial local, aunque el servidor falle.
+    await clearAllOfflinePurchases();
+    await Promise.all([fetchProducts(), fetchUsers()]);
+    setCleaning(false);
+    setStatusMsg(
+      serverOk
+        ? { text: 'Historial borrado y stock reiniciado en 10.', tone: 'ok' }
+        : { text: `Historial local borrado. Servidor: ${serverError}`, tone: 'error' }
+    );
   };
 
-  const deleteUser = (target: AdminUser) => {
-    const doDelete = async () => {
-      setBusyId(target.id);
-      try {
-        const options: RequestInit = { method: 'DELETE', headers: adminHeaders };
-        let res = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/auth/users/${target.id}`, options).catch(
+  const runDeleteUser = async (target: AdminUser) => {
+    setBusyId(target.id);
+    setStatusMsg(null);
+    try {
+      const options: RequestInit = { method: 'DELETE', headers: adminHeaders };
+      let res = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/auth/users/${target.id}`, options).catch(
+        () => null
+      );
+      if (!res || !res.ok) {
+        res = await fetch(`${SERVICES_CONFIG.AUTH_URL}/users/${target.id}`, options).catch(
           () => null
         );
-        if (!res || !res.ok) {
-          res = await fetch(`${SERVICES_CONFIG.AUTH_URL}/users/${target.id}`, options).catch(
-            () => null
-          );
-        }
-        const data = res ? await res.json().catch(() => ({})) : {};
-        if (!res || !res.ok) {
-          throw new Error(data.error || 'No se pudo eliminar el usuario');
-        }
-        await Promise.all([fetchUsers(), fetchProducts()]);
-        if (Platform.OS !== 'web') {
-          Alert.alert('Usuario eliminado', 'El stock de sus compras activas fue devuelto.');
-        }
-      } catch (err: any) {
-        const msg = err.message || 'No se pudo eliminar el usuario';
-        if (Platform.OS !== 'web') Alert.alert('Error', msg);
-        else alert(msg);
-      } finally {
-        setBusyId(null);
       }
-    };
-
-    const question = `¿Eliminar a ${target.nombre} (${target.correo})? Se devolverá el stock de sus compras activas.`;
-    if (Platform.OS === 'web') {
-      if (window.confirm(question)) doDelete();
-    } else {
-      Alert.alert('Eliminar usuario', question, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: doDelete }
-      ]);
+      const data = res ? await res.json().catch(() => ({})) : {};
+      if (!res || !res.ok) {
+        throw new Error(data.error || 'No se pudo eliminar el usuario');
+      }
+      await Promise.all([fetchUsers(), fetchProducts()]);
+      setStatusMsg({ text: 'Usuario eliminado y stock devuelto.', tone: 'ok' });
+    } catch (err: any) {
+      setStatusMsg({ text: err.message || 'No se pudo eliminar el usuario', tone: 'error' });
+    } finally {
+      setBusyId(null);
     }
   };
+
+  const confirmTitle = confirmAction?.kind === 'clean' ? 'Borrar historial' : 'Eliminar usuario';
+  const confirmMessage =
+    confirmAction?.kind === 'clean'
+      ? '¿Borrar TODO el historial de compras y reiniciar el stock en 10? Esta acción no se puede deshacer.'
+      : confirmAction?.kind === 'delete'
+        ? `¿Eliminar a ${confirmAction.user.nombre} (${confirmAction.user.correo})? Se devolverá el stock de sus compras activas.`
+        : '';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -270,6 +246,19 @@ export default function AdminPanelScreen() {
           <Text style={styles.refreshText}>Actualizar</Text>
         </TouchableOpacity>
       </View>
+
+      {statusMsg && (
+        <View style={[styles.statusBox, statusMsg.tone === 'error' ? styles.statusError : styles.statusOk]}>
+          <Text
+            style={[
+              styles.statusText,
+              statusMsg.tone === 'error' ? styles.statusTextError : styles.statusTextOk
+            ]}
+          >
+            {statusMsg.text}
+          </Text>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.center}>
@@ -370,7 +359,7 @@ export default function AdminPanelScreen() {
                 ) : (
                   <TouchableOpacity
                     style={styles.deleteBtn}
-                    onPress={() => deleteUser(u)}
+                    onPress={() => setConfirmAction({ kind: 'delete', user: u })}
                     disabled={busyId === u.id}
                   >
                     <Text style={styles.deleteBtnText}>Eliminar</Text>
@@ -389,7 +378,7 @@ export default function AdminPanelScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.dangerBtn, cleaning && styles.disabledBtn]}
-            onPress={clearHistory}
+            onPress={() => setConfirmAction({ kind: 'clean' })}
             disabled={cleaning}
           >
             {cleaning ? (
@@ -404,17 +393,28 @@ export default function AdminPanelScreen() {
             onPress={async () => {
               await clearAllOfflinePurchases();
               await loadAll();
-              if (Platform.OS !== 'web') {
-                Alert.alert('Historial local limpiado', 'Se borraron las compras guardadas en este dispositivo.');
-              } else {
-                alert('Historial local limpiado.');
-              }
+              setStatusMsg({ text: 'Historial local limpiado.', tone: 'ok' });
             }}
           >
             <Text style={styles.localCleanText}>Limpiar solo este dispositivo</Text>
           </TouchableOpacity>
         </View>
       )}
+
+      <ConfirmModal
+        visible={!!confirmAction}
+        title={confirmTitle}
+        message={confirmMessage}
+        confirmLabel={confirmAction?.kind === 'clean' ? 'Sí, borrar' : 'Eliminar'}
+        destructive
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          const action = confirmAction;
+          setConfirmAction(null);
+          if (action?.kind === 'clean') runClearHistory();
+          else if (action?.kind === 'delete') runDeleteUser(action.user);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -725,6 +725,30 @@ const styles = StyleSheet.create({
   },
   disabledBtn: {
     opacity: 0.6
+  },
+  statusBox: {
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: 12,
+    marginBottom: 14
+  },
+  statusOk: {
+    backgroundColor: COLORS.successSoft,
+    borderColor: 'rgba(62, 230, 161, 0.35)'
+  },
+  statusError: {
+    backgroundColor: COLORS.dangerSoft,
+    borderColor: 'rgba(255, 107, 138, 0.35)'
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  statusTextOk: {
+    color: COLORS.success
+  },
+  statusTextError: {
+    color: COLORS.danger
   },
   localCleanBtn: {
     marginTop: 10,

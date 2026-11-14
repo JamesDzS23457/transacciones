@@ -8,15 +8,14 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
-  Alert,
-  Platform
+  SafeAreaView
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useApp, SERVICES_CONFIG } from '../context/AppContext';
 import { getAllOfflinePurchases, removeOfflinePurchase, PendingPurchase } from '../services/offlineStorage';
 import { syncPendingPurchases } from '../services/syncService';
 import { COLORS, RADIUS, SHADOW } from '../constants/brand';
+import ConfirmModal from '../components/confirm-modal';
 
 interface OrderItem {
   id?: number;
@@ -51,6 +50,8 @@ export default function MyOrdersScreen() {
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [syncing, setSyncing] = useState<boolean>(false);
+  const [cancelTarget, setCancelTarget] = useState<GroupedOrder | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -155,9 +156,13 @@ export default function MyOrdersScreen() {
     }
   };
 
-  useEffect(() => {
-    loadOrders();
-  }, [user]);
+  // Refresca al volver a la pantalla: así, después de limpiar el historial
+  // o cancelar una compra desde el panel, no se queda con el estado viejo.
+  useFocusEffect(
+    React.useCallback(() => {
+      loadOrders();
+    }, [user])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -174,62 +179,47 @@ export default function MyOrdersScreen() {
     }
   };
 
-  const handleCancel = (order: GroupedOrder) => {
-    const doCancel = async () => {
-      try {
-        // Compra que solo existe en el historial local (por ejemplo, después de
-        // limpiar la base o si nunca llegó a sincronizarse): se elimina del
-        // dispositivo. No hay compra activa en el servidor que cancelar.
-        if (order.isOffline && order.localId) {
-          await removeOfflinePurchase(order.localId);
-          await loadOrders();
-          if (Platform.OS !== 'web') {
-            Alert.alert('Compra eliminada', 'Se eliminó la compra del historial local.');
-          }
-          return;
-        }
-
-        const options: RequestInit = {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-role': user?.rol || ''
-          },
-          body: JSON.stringify({
-            numero_factura: order.numero_factura,
-            usuario_id: user?.id
-          })
-        };
-
-        let response = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/cancel`, options).catch(() => null);
-        if (!response || !response.ok) {
-          response = await fetch(`${SERVICES_CONFIG.ORDERS_URL}/cancel`, options).catch(() => null);
-        }
-        const data = response ? await response.json().catch(() => ({})) : {};
-        if (!response || !response.ok) {
-          throw new Error(data.error || 'No se pudo cancelar la compra');
-        }
-
+  const runCancel = async (order: GroupedOrder) => {
+    setStatusMsg(null);
+    try {
+      // Compra que solo existe en el historial local: se elimina del dispositivo.
+      if (order.isOffline && order.localId) {
+        await removeOfflinePurchase(order.localId);
         await loadOrders();
-        if (Platform.OS !== 'web') {
-          Alert.alert('Compra cancelada', 'El stock de los productos fue devuelto.');
-        }
-      } catch (err: any) {
-        const msg = err.message || 'No se pudo cancelar la compra';
-        if (Platform.OS !== 'web') Alert.alert('Error', msg);
-        else alert(msg);
+        setStatusMsg({ text: 'Compra eliminada del historial local.', tone: 'ok' });
+        return;
       }
-    };
 
-    const question = '¿Cancelar esta compra y devolver el stock?';
-    if (Platform.OS === 'web') {
-      if (window.confirm(question)) doCancel();
-    } else {
-      Alert.alert('Cancelar compra', question, [
-        { text: 'No', style: 'cancel' },
-        { text: 'Sí, cancelar', style: 'destructive', onPress: doCancel }
-      ]);
+      const options: RequestInit = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': user?.rol || ''
+        },
+        body: JSON.stringify({
+          numero_factura: order.numero_factura,
+          usuario_id: user?.id
+        })
+      };
+
+      let response = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/cancel`, options).catch(() => null);
+      if (!response || !response.ok) {
+        response = await fetch(`${SERVICES_CONFIG.ORDERS_URL}/cancel`, options).catch(() => null);
+      }
+      const data = response ? await response.json().catch(() => ({})) : {};
+      if (!response || !response.ok) {
+        throw new Error(data.error || 'No se pudo cancelar la compra');
+      }
+
+      await loadOrders();
+      setStatusMsg({ text: 'Compra cancelada. El stock fue devuelto.', tone: 'ok' });
+    } catch (err: any) {
+      setStatusMsg({ text: err.message || 'No se pudo cancelar la compra', tone: 'error' });
     }
+  };
+
+  const handleCancel = (order: GroupedOrder) => {
+    setCancelTarget(order);
   };
 
   const renderOrderCard = ({ item }: { item: GroupedOrder }) => (
@@ -329,6 +319,19 @@ export default function MyOrdersScreen() {
         </TouchableOpacity>
       </View>
 
+      {statusMsg && (
+        <View style={[styles.statusBox, statusMsg.tone === 'error' ? styles.statusError : styles.statusOk]}>
+          <Text
+            style={[
+              styles.statusText,
+              statusMsg.tone === 'error' ? styles.statusTextError : styles.statusTextOk
+            ]}
+          >
+            {statusMsg.text}
+          </Text>
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -365,6 +368,24 @@ export default function MyOrdersScreen() {
           }
         />
       )}
+
+      <ConfirmModal
+        visible={!!cancelTarget}
+        title="Cancelar compra"
+        message={
+          cancelTarget?.isOffline
+            ? '¿Eliminar esta compra del historial local?'
+            : '¿Cancelar esta compra y devolver el stock de sus productos?'
+        }
+        confirmLabel={cancelTarget?.isOffline ? 'Sí, eliminar' : 'Sí, cancelar'}
+        destructive
+        onCancel={() => setCancelTarget(null)}
+        onConfirm={() => {
+          const target = cancelTarget;
+          setCancelTarget(null);
+          if (target) runCancel(target);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -408,6 +429,31 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     opacity: 0.6
+  },
+  statusBox: {
+    marginHorizontal: 18,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: 12
+  },
+  statusOk: {
+    backgroundColor: COLORS.successSoft,
+    borderColor: 'rgba(62, 230, 161, 0.35)'
+  },
+  statusError: {
+    backgroundColor: COLORS.dangerSoft,
+    borderColor: 'rgba(255, 107, 138, 0.35)'
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  statusTextOk: {
+    color: COLORS.success
+  },
+  statusTextError: {
+    color: COLORS.danger
   },
   centerContainer: {
     flex: 1,
