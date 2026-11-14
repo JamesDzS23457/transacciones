@@ -55,6 +55,9 @@ interface AppContextType {
   refreshTotals: () => Promise<void>;
   syncNow: () => Promise<number>;
   viewLocalPurchases: () => Promise<any[]>;
+  /** Aviso para el modal de "Productos sincronizados". */
+  syncNotice: { visible: boolean; count: number };
+  dismissSyncNotice: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -65,6 +68,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [calculation, setCalculation] = useState<CartCalculation | null>(null);
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
+  const [syncNotice, setSyncNotice] = useState<{ visible: boolean; count: number }>({
+    visible: false,
+    count: 0
+  });
 
   const login = (userData: User, userToken: string) => {
     setUser(userData);
@@ -184,6 +191,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     getDatabase();
     const unsubscribe = initNetworkSyncListener((count) => {
       console.log(`[App] Se han sincronizado automáticamente ${count} compras hacia la nube.`);
+      setSyncNotice({ visible: true, count });
     });
     return () => unsubscribe();
   }, []);
@@ -212,7 +220,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isCalculating,
         refreshTotals,
         syncNow,
-        viewLocalPurchases
+        viewLocalPurchases,
+        syncNotice,
+        dismissSyncNotice: () => setSyncNotice({ visible: false, count: 0 })
       }}
     >
       {children}

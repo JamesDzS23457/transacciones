@@ -42,8 +42,9 @@ export default function CartScreen() {
   const [showModal, setShowModal] = useState<boolean>(false);
 
   // Estado real de la conexión para avisar antes de confirmar la compra.
+  // Solo se considera offline si el dispositivo lo dice explícitamente.
   const netInfo = useNetInfo();
-  const offline = netInfo.isConnected === false || netInfo.isInternetReachable === false;
+  const offline = netInfo.isConnected === false;
 
   // Proteger la vista: requiere inicio de sesión
   React.useEffect(() => {

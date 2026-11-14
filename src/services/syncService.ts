@@ -12,9 +12,13 @@ const DIRECT_TIMEOUT_MS = 20000;
 export async function isOnline(): Promise<boolean> {
   try {
     const state = await NetInfo.fetch();
-    return state.isConnected === true && state.isInternetReachable !== false;
+    // En web, isInternetReachable puede quedar en false por el chequeo HEAD
+    // interno de NetInfo aunque el navegador sí tenga internet. Por eso solo
+    // se considera offline cuando el dispositivo dice explícitamente que no
+    // está conectado; si hay duda, se intenta la petición (con timeout).
+    return state.isConnected !== false;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -51,6 +55,7 @@ export async function sendCheckout(payload: unknown): Promise<boolean> {
     options,
     GATEWAY_TIMEOUT_MS
   );
+  console.log(`[Checkout] gateway -> ${response ? response.status : 'sin respuesta'}`);
 
   if (!response || !response.ok) {
     response = await fetchWithTimeout(
@@ -58,6 +63,7 @@ export async function sendCheckout(payload: unknown): Promise<boolean> {
       options,
       DIRECT_TIMEOUT_MS
     );
+    console.log(`[Checkout] orders directo -> ${response ? response.status : 'sin respuesta'}`);
   }
 
   return Boolean(response && response.ok);
@@ -123,7 +129,7 @@ export async function syncPendingPurchases(): Promise<number> {
  */
 export function initNetworkSyncListener(onSyncCompleted?: (count: number) => void) {
   return NetInfo.addEventListener((state: NetInfoState) => {
-    const online = state.isConnected === true && state.isInternetReachable !== false;
+    const online = state.isConnected !== false;
     console.log(`📶 [Red] ${online ? 'ONLINE' : 'OFFLINE'}`);
 
     if (online) {
