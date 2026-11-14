@@ -177,11 +177,15 @@ export default function MyOrdersScreen() {
   const handleCancel = (order: GroupedOrder) => {
     const doCancel = async () => {
       try {
-        // Compra pendiente en local: aún no se descontó stock en el servidor.
-        if (order.isOffline && !order.synced && order.localId) {
+        // Compra que solo existe en el historial local (por ejemplo, después de
+        // limpiar la base o si nunca llegó a sincronizarse): se elimina del
+        // dispositivo. No hay compra activa en el servidor que cancelar.
+        if (order.isOffline && order.localId) {
           await removeOfflinePurchase(order.localId);
           await loadOrders();
-          if (Platform.OS !== 'web') Alert.alert('Compra cancelada', 'Se eliminó la compra pendiente.');
+          if (Platform.OS !== 'web') {
+            Alert.alert('Compra eliminada', 'Se eliminó la compra del historial local.');
+          }
           return;
         }
 

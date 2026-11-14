@@ -142,6 +142,9 @@ export default function AdminPanelScreen() {
   const clearHistory = () => {
     const doClear = async () => {
       setCleaning(true);
+      let serverOk = false;
+      let serverError = '';
+
       try {
         const options: RequestInit = { method: 'DELETE', headers: adminHeaders };
         let response = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/all`, options).catch(() => null);
@@ -150,23 +153,31 @@ export default function AdminPanelScreen() {
         }
         const data = response ? await response.json().catch(() => ({})) : {};
         if (!response || !response.ok) {
-          throw new Error(data.error || 'No se pudo limpiar el historial');
+          throw new Error(data.error || 'No se pudo limpiar el historial en el servidor');
         }
-
-        await clearAllOfflinePurchases();
-        await Promise.all([fetchProducts(), fetchUsers()]);
-
-        if (Platform.OS !== 'web') {
-          Alert.alert('Limpieza completada', 'Historial borrado y stock reiniciado en 10.');
-        } else {
-          alert('Historial borrado y stock reiniciado en 10.');
-        }
+        serverOk = true;
       } catch (err: any) {
-        const msg = err.message || 'No se pudo limpiar el historial';
-        if (Platform.OS !== 'web') Alert.alert('Error', msg);
-        else alert(msg);
-      } finally {
-        setCleaning(false);
+        serverError = err.message || 'No se pudo limpiar el servidor';
+      }
+
+      // Limpiar SIEMPRE el historial local, aunque el servidor falle.
+      await clearAllOfflinePurchases();
+      await Promise.all([fetchProducts(), fetchUsers()]);
+      setCleaning(false);
+
+      if (Platform.OS !== 'web') {
+        Alert.alert(
+          serverOk ? 'Limpieza completada' : 'Historial local limpiado',
+          serverOk
+            ? 'Historial borrado y stock reiniciado en 10.'
+            : `Se limpió este dispositivo. El servidor no se pudo limpiar: ${serverError}. Redeploya orders-service.`
+        );
+      } else {
+        alert(
+          serverOk
+            ? 'Historial borrado y stock reiniciado en 10.'
+            : `Historial local borrado. El servidor no se pudo limpiar: ${serverError}`
+        );
       }
     };
 
@@ -386,6 +397,21 @@ export default function AdminPanelScreen() {
             ) : (
               <Text style={styles.dangerBtnText}>Borrar historial y reiniciar stock</Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.localCleanBtn}
+            onPress={async () => {
+              await clearAllOfflinePurchases();
+              await loadAll();
+              if (Platform.OS !== 'web') {
+                Alert.alert('Historial local limpiado', 'Se borraron las compras guardadas en este dispositivo.');
+              } else {
+                alert('Historial local limpiado.');
+              }
+            }}
+          >
+            <Text style={styles.localCleanText}>Limpiar solo este dispositivo</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -699,5 +725,18 @@ const styles = StyleSheet.create({
   },
   disabledBtn: {
     opacity: 0.6
+  },
+  localCleanBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md
+  },
+  localCleanText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: '700'
   }
 });
