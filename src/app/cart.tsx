@@ -13,10 +13,11 @@ import {
   ScrollView
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useNetInfo } from '@react-native-community/netinfo';
 import * as Print from 'expo-print';
-import { useApp, CartItem, SERVICES_CONFIG } from '../context/AppContext';
-import { savePurchaseOffline } from '../services/offlineStorage';
-import { syncPendingPurchases } from '../services/syncService';
+import { useApp, CartItem } from '../context/AppContext';
+import { savePurchaseOffline, markAsSynced } from '../services/offlineStorage';
+import { isOnline, sendCheckout } from '../services/syncService';
 
 interface InvoiceData {
   numero_factura: string;
@@ -29,6 +30,8 @@ interface InvoiceData {
   subtotal: number;
   iva: number;
   total: number;
+  /** true cuando la compra quedó pendiente en SQLite (sin internet). */
+  pendienteSync?: boolean;
 }
 
 export default function CartScreen() {
@@ -37,6 +40,10 @@ export default function CartScreen() {
   const [processingOrder, setProcessingOrder] = useState<boolean>(false);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [showModal, setShowModal] = useState<boolean>(false);
+
+  // Estado real de la conexión para avisar antes de confirmar la compra.
+  const netInfo = useNetInfo();
+  const offline = netInfo.isConnected === false || netInfo.isInternetReachable === false;
 
   // Proteger la vista: requiere inicio de sesión
   React.useEffect(() => {
@@ -134,7 +141,9 @@ export default function CartScreen() {
           </div>
 
           <div class="footer">
-            ¡Gracias por su compra! Esta factura ha sido registrada exitosamente en Neon Database.
+            ${data.pendienteSync
+              ? 'Compra guardada localmente. Se sincronizará con la nube cuando vuelva la conexión.'
+              : '¡Gracias por su compra! Esta factura ha sido registrada exitosamente en Neon Database.'}
           </div>
         </body>
       </html>
@@ -207,11 +216,9 @@ export default function CartScreen() {
       const totalVal = calculation?.total || +(subtotalVal + ivaVal).toFixed(2);
       const currentCartItems = [...cart];
 
-      // 2. Limpiar el carrito inmediatamente para evitar envíos dobles por clicks rápidos
-      clearCart();
-
-      // 3. GUARDAR PRIMERO EN SQLITE LOCAL (Garantiza persistencia offline)
-      await savePurchaseOffline({
+      // 2. GUARDAR PRIMERO EN SQLITE/AsyncStorage LOCAL (persistencia offline).
+      // Si esto falla, el carrito NO se vacía y el usuario puede reintentar.
+      const localId = await savePurchaseOffline({
         usuario_id: user.id,
         numero_factura: numFactura,
         items_json: JSON.stringify(currentCartItems),
@@ -220,33 +227,26 @@ export default function CartScreen() {
         total: totalVal
       });
 
-      // 4. INTENTAR ENVIAR DIRECTO AL MICROSERVICIO EN RENDER
-      const payload = JSON.stringify({
-        usuario_id: user.id,
-        items: currentCartItems,
-        numero_factura: numFactura
-      });
+      // 3. La compra ya está a salvo localmente: limpiar el carrito.
+      clearCart();
 
-      let response: Response | null = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/orders/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload
-      }).catch(() => null);
+      // 4. Solo intentar la nube si hay conexión real
+      const online = await isOnline();
+      const synced = online
+        ? await sendCheckout({
+            usuario_id: user.id,
+            items: currentCartItems,
+            numero_factura: numFactura
+          })
+        : false;
 
-      if (!response || !response.ok) {
-        response = await fetch(`${SERVICES_CONFIG.ORDERS_URL}/checkout`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload
-        }).catch(() => null);
-      }
-
-      // Si se envió con éxito a Render, sincronizamos de una vez
-      if (response && response.ok) {
-        console.log('🌐 [Red] Compra enviada con éxito a Neon Database en la nube.');
-        syncPendingPurchases(); // Marca la compra local como synced = 1
+      if (synced) {
+        // La compra ya está en Neon: marcar la copia local como sincronizada.
+        // No se reenvía con syncPendingPurchases para no duplicarla.
+        await markAsSynced(localId);
+        console.log('🌐 [Red] Compra guardada localmente y sincronizada con Neon.');
       } else {
-        console.warn('⚠️ [Offline] Sin internet o microservicio no disponible. La compra quedó segura en SQLite y se subirá automáticamente al tener red.');
+        console.warn('📴 [Offline] Compra guardada en la base local; queda pendiente de sincronizar.');
       }
 
       // 5. Preparar la factura electrónica para visualizarla e imprimirla
@@ -260,17 +260,19 @@ export default function CartScreen() {
         items: currentCartItems,
         subtotal: subtotalVal,
         iva: ivaVal,
-        total: totalVal
+        total: totalVal,
+        pendienteSync: !synced
       };
 
       setInvoice(invoiceGenerated);
       setShowModal(true);
 
-      const successNotice = '✅ ¡Compra registrada con éxito!\nLos detalles se guardaron localmente y en la base de datos.';
+      const successNotice = synced
+        ? '✅ Compra registrada y sincronizada con la nube.'
+        : '📦 Compra guardada en la base local.\nSe sincronizará automáticamente cuando vuelva el internet.';
       if (Platform.OS !== 'web') {
-        Alert.alert('Éxito', successNotice);
+        Alert.alert(synced ? 'Éxito' : 'Guardada offline', successNotice);
       } else {
-        // Alerta amigable en web
         console.log(successNotice);
       }
     } catch (err: any) {
@@ -345,6 +347,14 @@ export default function CartScreen() {
         </View>
       ) : (
         <>
+          {offline && (
+            <View style={styles.offlineBanner}>
+              <Text style={styles.offlineBannerText}>
+                📴 Sin conexión: la compra se guardará en el dispositivo y se subirá automáticamente al volver internet.
+              </Text>
+            </View>
+          )}
+
           <FlatList
             data={cart}
             keyExtractor={(item) => item.id.toString()}
@@ -416,6 +426,21 @@ export default function CartScreen() {
                 <View style={styles.invoiceNumberBox}>
                   <Text style={styles.invoiceNumberLabel}>FACTURA N°</Text>
                   <Text style={styles.invoiceNumber}>{invoice?.numero_factura}</Text>
+                  <View
+                    style={[
+                      styles.syncBadge,
+                      invoice?.pendienteSync ? styles.syncBadgePending : styles.syncBadgeOk
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.syncBadgeText,
+                        invoice?.pendienteSync ? styles.syncBadgeTextPending : styles.syncBadgeTextOk
+                      ]}
+                    >
+                      {invoice?.pendienteSync ? '⏳ Guardada offline' : '☁️ Sincronizada'}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
@@ -816,5 +841,41 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 14
+  },
+  offlineBanner: {
+    backgroundColor: '#fef3c7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f59e0b',
+    paddingHorizontal: 16,
+    paddingVertical: 10
+  },
+  offlineBannerText: {
+    color: '#92400e',
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '600'
+  },
+  syncBadge: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    alignSelf: 'flex-end'
+  },
+  syncBadgePending: {
+    backgroundColor: '#fef3c7'
+  },
+  syncBadgeOk: {
+    backgroundColor: '#dcfce7'
+  },
+  syncBadgeText: {
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  syncBadgeTextPending: {
+    color: '#92400e'
+  },
+  syncBadgeTextOk: {
+    color: '#166534'
   }
 });
