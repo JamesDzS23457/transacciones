@@ -60,6 +60,7 @@ export default function RootLayout() {
         <Stack.Screen name="cart" options={{ title: 'MI CARRITO' }} />
         <Stack.Screen name="my-orders" options={{ title: 'MIS COMPRAS' }} />
         <Stack.Screen name="add-product" options={{ title: 'NUEVO PRODUCTO' }} />
+        <Stack.Screen name="admin" options={{ title: 'PANEL ADMIN' }} />
       </Stack>
     </AppProvider>
   );

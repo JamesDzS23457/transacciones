@@ -89,7 +89,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addToCart = (product: Product) => {
-    const stock = Number(product.stock ?? 0);
+    const stock = Number.isFinite(Number(product.stock)) ? Number(product.stock) : 999;
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
@@ -114,7 +114,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (item.id === productId) {
             const newQty = item.cantidad + delta;
             if (newQty <= 0) return null;
-            if (delta > 0 && newQty > Number(item.stock ?? 0)) return item;
+            const maxStock = Number.isFinite(Number(item.stock)) ? Number(item.stock) : 999;
+            if (delta > 0 && newQty > maxStock) return item;
             return { ...item, cantidad: newQty };
           }
           return item;

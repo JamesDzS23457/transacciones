@@ -147,9 +147,23 @@ export default function ProductsScreen() {
         <View style={styles.idBadge}>
           <Text style={styles.idText}>#{item.id}</Text>
         </View>
-        <View style={[styles.stockBadge, item.stock <= 0 && styles.stockBadgeEmpty]}>
-          <Text style={[styles.stockText, item.stock <= 0 && styles.stockTextEmpty]}>
-            {item.stock <= 0 ? 'AGOTADO' : `STOCK ${item.stock}`}
+        <View
+          style={[
+            styles.stockBadge,
+            typeof item.stock === 'number' && item.stock <= 0 && styles.stockBadgeEmpty
+          ]}
+        >
+          <Text
+            style={[
+              styles.stockText,
+              typeof item.stock === 'number' && item.stock <= 0 && styles.stockTextEmpty
+            ]}
+          >
+            {typeof item.stock === 'number'
+              ? item.stock <= 0
+                ? 'AGOTADO'
+                : `STOCK ${item.stock}`
+              : 'STOCK —'}
           </Text>
         </View>
       </View>
@@ -167,7 +181,9 @@ export default function ProductsScreen() {
             >
               <Text style={styles.stockBtnText}>−</Text>
             </TouchableOpacity>
-            <Text style={styles.stockControlValue}>{item.stock}</Text>
+            <Text style={styles.stockControlValue}>
+              {typeof item.stock === 'number' ? item.stock : '—'}
+            </Text>
             <TouchableOpacity
               style={styles.stockBtn}
               onPress={() => adjustStock(item, 1)}
@@ -183,9 +199,12 @@ export default function ProductsScreen() {
             <Text style={styles.productPrice}>${parseFloat(item.precio as any).toFixed(2)}</Text>
           </View>
           <TouchableOpacity
-            style={[styles.addButton, item.stock <= 0 && styles.addButtonDisabled]}
+            style={[
+              styles.addButton,
+              typeof item.stock === 'number' && item.stock <= 0 && styles.addButtonDisabled
+            ]}
             onPress={() => addToCart(item)}
-            disabled={item.stock <= 0}
+            disabled={typeof item.stock === 'number' && item.stock <= 0}
             activeOpacity={0.85}
             accessibilityLabel={`Agregar ${item.nombreproducto} al carrito`}
           >
@@ -266,6 +285,11 @@ export default function ProductsScreen() {
         <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle}>CATÁLOGO</Text>
           <View style={styles.sectionRight}>
+            {isAdmin && (
+              <TouchableOpacity style={styles.adminChip} onPress={() => router.push('/admin' as any)}>
+                <Text style={styles.adminChipText}>Panel admin</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.ordersChip} onPress={() => router.push('/my-orders')}>
               <Text style={styles.ordersChipText}>Mis compras</Text>
             </TouchableOpacity>
@@ -510,6 +534,19 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     fontSize: 11,
     fontWeight: '700'
+  },
+  adminChip: {
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 255, 61, 0.35)'
+  },
+  adminChipText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: '900'
   },
   countText: {
     color: COLORS.textDim,
