@@ -40,7 +40,7 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        value: postgresql://neondb_owner:npg_p9ZMK0DnQOzv@ep-plain-dream-bb1g6sq3.c-15.us-east-1.aws.neon.tech/neondb?sslmode=require
+        sync: false
       - key: JWT_SECRET
         generateValue: true
 
@@ -57,7 +57,7 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        value: postgresql://neondb_owner:npg_p9ZMK0DnQOzv@ep-plain-dream-bb1g6sq3.c-15.us-east-1.aws.neon.tech/neondb?sslmode=require
+        sync: false
 
   # 4. Microservicio de Precios & Facturación de Compras
   - type: web
@@ -72,6 +72,6 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        value: postgresql://neondb_owner:npg_p9ZMK0DnQOzv@ep-plain-dream-bb1g6sq3.c-15.us-east-1.aws.neon.tech/neondb?sslmode=require
+        sync: false
       - key: TAX_RATE
         value: 0.19
