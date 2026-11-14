@@ -11,9 +11,14 @@ const PORT = process.env.PORT || 4000;
 // (ej. transacciones-auth-service.onrender.com), sin protocolo. Sin esto,
 // http-proxy-middleware no puede interpretar el destino y responde 504.
 const normalizeServiceUrl = (value) => {
-  const url = String(value || '').trim().replace(/\/+$/, '');
+  let url = String(value || '').trim().replace(/\/+$/, '');
   if (!url) return url;
-  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  if (/^https?:\/\//i.test(url)) return url;
+  // Render puede entregar solo el nombre interno (ej. transacciones-auth-service).
+  // Ese host no resuelve por HTTPS desde fuera de la red privada, así que se
+  // completa con el dominio público de Render.
+  if (!url.includes('.')) url = `${url}.onrender.com`;
+  return `https://${url}`;
 };
 
 const AUTH_SERVICE_URL = normalizeServiceUrl(process.env.AUTH_SERVICE_URL || 'http://localhost:4001');
