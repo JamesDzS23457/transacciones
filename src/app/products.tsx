@@ -45,19 +45,28 @@ export default function ProductsScreen() {
   const fetchProducts = async () => {
     try {
       setErrorMsg('');
-      let response: Response | null = await fetch(`${SERVICES_CONFIG.GATEWAY_URL}/products`).catch(() => null);
-      if (!response || !response.ok) {
-        response = await fetch(`${SERVICES_CONFIG.PRODUCTS_URL}/products`).catch(() => null);
+
+      // Solo se acepta una respuesta si es un arreglo real. Así evitamos que
+      // un gateway mal configurado devuelva un objeto y rompa el render.
+      const fetchList = async (url: string): Promise<Product[] | null> => {
+        const response = await fetch(url).catch(() => null);
+        if (!response || !response.ok) return null;
+        const data = await response.json().catch(() => null);
+        return Array.isArray(data) ? data : null;
+      };
+
+      let data = await fetchList(`${SERVICES_CONFIG.GATEWAY_URL}/products`);
+      if (!data) {
+        data = await fetchList(`${SERVICES_CONFIG.PRODUCTS_URL}/products`);
       }
 
-      if (response && response.ok) {
-        const data = await response.json();
+      if (data) {
         setProducts(data);
         await cacheProductsLocally(data);
       } else {
         console.warn('⚠️ [Offline] Cargando catálogo desde la base local...');
         const localProds = await getLocalProducts();
-        if (localProds.length > 0) {
+        if (Array.isArray(localProds) && localProds.length > 0) {
           setProducts(localProds);
         } else {
           throw new Error('No hay conexión y tampoco hay productos guardados localmente.');
@@ -66,7 +75,7 @@ export default function ProductsScreen() {
     } catch (err: any) {
       console.warn('Error fetching products:', err);
       const localProds = await getLocalProducts();
-      if (localProds.length > 0) {
+      if (Array.isArray(localProds) && localProds.length > 0) {
         setProducts(localProds);
       } else {
         setErrorMsg('Sin conexión a internet ni productos en caché local.');
@@ -88,8 +97,8 @@ export default function ProductsScreen() {
 
   const totalCartCount = cart.reduce((acc, item) => acc + item.cantidad, 0);
 
-  const filteredProducts = products.filter((p) =>
-    p.nombreproducto?.toLowerCase().includes(query.trim().toLowerCase())
+  const filteredProducts = (Array.isArray(products) ? products : []).filter((p) =>
+    p?.nombreproducto?.toLowerCase().includes(query.trim().toLowerCase())
   );
 
   const renderProductItem = ({ item }: { item: Product }) => (

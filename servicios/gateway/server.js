@@ -67,15 +67,15 @@ app.use(
   })
 );
 
-// Proxy a Microservicio de Productos (/api/products/*)
+// Proxy a Microservicio de Productos (/api/products/*).
+// Express ya quita el prefijo del mount, así que aquí llega "/" o "/:id".
+// Hay que reconstruir la ruta real del microservicio: /products o /products/:id.
 app.use(
   '/api/products',
   createProxyMiddleware({
     target: PRODUCTS_SERVICE_URL,
     changeOrigin: true,
-    pathRewrite: {
-      '^/api/products': '/products'
-    }
+    pathRewrite: (path) => (path === '/' ? '/products' : `/products${path}`)
   })
 );
 

@@ -290,6 +290,7 @@ export async function markAsSynced(localId: number) {
 
 // Guardar productos en caché local para cuando no haya internet
 export async function cacheProductsLocally(products: any[]) {
+  if (!Array.isArray(products)) return;
   const db = await getDatabase();
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
@@ -322,7 +323,9 @@ export async function getLocalProducts(): Promise<any[]> {
 
   try {
     const cached = await AsyncStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return cached ? JSON.parse(cached) : [];
+    if (!cached) return [];
+    const parsed = JSON.parse(cached);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
