@@ -20,20 +20,11 @@ services:
       - key: PORT
         value: 10000
       - key: AUTH_SERVICE_URL
-        fromService:
-          type: web
-          name: transacciones-auth-service
-          property: host
+        value: https://transacciones-auth-service.onrender.com
       - key: PRODUCTS_SERVICE_URL
-        fromService:
-          type: web
-          name: transacciones-products-service
-          property: host
+        value: https://transacciones-products-service.onrender.com
       - key: ORDERS_SERVICE_URL
-        fromService:
-          type: web
-          name: transacciones-orders-service
-          property: host
+        value: https://transacciones-orders-service.onrender.com
 
   # 2. Microservicio de Autenticación & Usuarios
   - type: web
